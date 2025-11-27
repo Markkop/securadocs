@@ -12,12 +12,12 @@
 
 ## 2. Visão Geral
 
-Este documento descreve o processo de migração do SecuraDocs de uma infraestrutura gerenciada (NeonDB + MinIO cloud) para uma infraestrutura self-hosted completa, garantindo soberania total sobre dados e infraestrutura.
+Este documento descreve o processo de migração do SecuraDocs de uma infraestrutura gerenciada (NeonDB + Supabase Storage) para uma infraestrutura self-hosted completa, garantindo soberania total sobre dados e infraestrutura.
 
 ### 2.1 Objetivos da Migração
 
 - Migrar banco de dados PostgreSQL do NeonDB para instância self-hosted.
-- Migrar arquivos do MinIO cloud para MinIO self-hosted (ou manter cloud se preferir).
+- Migrar arquivos do Supabase Storage para MinIO self-hosted.
 - Manter zero downtime durante a migração (quando possível).
 - Garantir integridade dos dados durante o processo.
 
@@ -360,7 +360,7 @@ http {
    docker exec -it securdocs-postgres psql -U securdocs -d securdocs -c "SELECT COUNT(*) FROM files;"
    ```
 
-### 5.3 Fase 3: Migração dos Arquivos (MinIO)
+### 5.3 Fase 3: Migração dos Arquivos (Supabase Storage → MinIO)
 
 1. **Configurar MinIO self-hosted**
    ```bash
@@ -369,46 +369,85 @@ http {
    # Criar bucket "securdocs-files"
    ```
 
-2. **Migrar arquivos do MinIO cloud para self-hosted**
+2. **Migrar arquivos do Supabase Storage para MinIO self-hosted**
 
-   Opção A: Usar `mc` (MinIO Client)
-   ```bash
-   # Instalar mc
-   wget https://dl.min.io/client/mc/release/linux-amd64/mc
-   chmod +x mc
-   sudo mv mc /usr/local/bin/
+   Script Node.js de migração (recomendado):
+   ```typescript
+   // scripts/migrate-files-supabase-to-minio.ts
+   import { createClient } from '@supabase/supabase-js';
+   import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+   import { db } from '@/lib/db';
+   import { files } from '@/lib/db/schema';
    
-   # Configurar aliases
-   mc alias set source https://cloud-minio-endpoint.com ACCESS_KEY SECRET_KEY
-   mc alias set dest http://localhost:9000 MINIO_ROOT_USER MINIO_ROOT_PASSWORD
+   const supabase = createClient(
+     process.env.SOURCE_SUPABASE_URL!,
+     process.env.SOURCE_SUPABASE_SERVICE_ROLE_KEY!
+   );
    
-   # Migrar arquivos
-   mc mirror source/securdocs-files dest/securdocs-files
+   const minioClient = new S3Client({
+     endpoint: process.env.DEST_MINIO_ENDPOINT,
+     region: "us-east-1",
+     credentials: {
+       accessKeyId: process.env.DEST_MINIO_ACCESS_KEY!,
+       secretAccessKey: process.env.DEST_MINIO_SECRET_KEY!,
+     },
+     forcePathStyle: true,
+   });
+   
+   async function migrateFiles() {
+     // Buscar todos os arquivos do banco
+     const allFiles = await db.select().from(files);
+     
+     console.log(`Migrando ${allFiles.length} arquivos...`);
+     
+     for (const file of allFiles) {
+       try {
+         // Download do Supabase Storage
+         const { data: fileData, error: downloadError } = await supabase.storage
+           .from('securdocs-files')
+           .download(file.storagePath);
+         
+         if (downloadError) {
+           console.error(`Erro ao baixar ${file.storagePath}:`, downloadError);
+           continue;
+         }
+         
+         // Converter Blob para Buffer
+         const buffer = Buffer.from(await fileData.arrayBuffer());
+         
+         // Upload para MinIO
+         await minioClient.send(new PutObjectCommand({
+           Bucket: 'securdocs-files',
+           Key: file.storagePath,
+           Body: buffer,
+           ContentType: file.mimeType || 'application/octet-stream',
+         }));
+         
+         console.log(`✓ Migrado: ${file.name}`);
+       } catch (error) {
+         console.error(`Erro ao migrar ${file.name}:`, error);
+       }
+     }
+     
+     console.log('Migração concluída!');
+   }
+   
+   migrateFiles();
    ```
 
-   Opção B: Script Node.js de migração
-   ```typescript
-   // scripts/migrate-files.ts
-   import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-   
-   const sourceClient = new S3Client({
-     endpoint: process.env.SOURCE_MINIO_ENDPOINT,
-     credentials: { /* ... */ },
-   });
-   
-   const destClient = new S3Client({
-     endpoint: process.env.DEST_MINIO_ENDPOINT,
-     credentials: { /* ... */ },
-   });
-   
-   // Listar e copiar arquivos
-   // (implementar lógica de migração)
+   Alternativa: Usar `mc` (MinIO Client) com Supabase Storage via S3 API
+   ```bash
+   # Nota: Supabase Storage não expõe diretamente API S3 compatível
+   # Use o script Node.js acima ou migre via código
    ```
 
 3. **Validar migração**
    ```bash
    # Comparar contagem de objetos
    mc ls dest/securdocs-files --recursive | wc -l
+   
+   # Validar alguns arquivos manualmente
+   # Comparar tamanhos e checksums se necessário
    ```
 
 ### 5.4 Fase 4: Deploy da Aplicação
@@ -422,6 +461,7 @@ http {
    # Configurar .env com novas URLs
    cp .env.example .env
    # Editar .env com DATABASE_URL=self-hosted, MINIO_ENDPOINT=self-hosted
+   # Remover variáveis do Supabase Storage e adicionar variáveis do MinIO
    
    # Build e iniciar
    docker-compose build
@@ -497,7 +537,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p $BACKUP_DIR
 
-# Usar mc para fazer backup
+# Usar mc para fazer backup do MinIO self-hosted
 mc mirror dest/securdocs-files $BACKUP_DIR/files_$TIMESTAMP
 
 # Comprimir
@@ -509,6 +549,8 @@ find $BACKUP_DIR -name "files_*.tar.gz" -mtime +7 -delete
 
 echo "Backup de arquivos criado: $BACKUP_DIR/files_$TIMESTAMP.tar.gz"
 ```
+
+**Nota:** Se ainda estiver usando Supabase Storage (antes da migração), use o script Node.js para fazer backup via API do Supabase.
 
 ### 6.3 Automatizar Backups
 
@@ -612,7 +654,7 @@ docker stats
 - [ ] Dump do NeonDB restaurado no PostgreSQL self-hosted
 - [ ] Dados validados (contagem de registros)
 - [ ] MinIO self-hosted iniciado e bucket criado
-- [ ] Arquivos migrados do MinIO cloud para self-hosted
+- [ ] Arquivos migrados do Supabase Storage para MinIO self-hosted
 - [ ] Arquivos validados (contagem de objetos)
 - [ ] Aplicação buildada e deployada
 - [ ] Migrations executadas (se necessário)

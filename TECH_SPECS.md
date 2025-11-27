@@ -18,7 +18,7 @@
 - UI com **Tailwind CSS 4** e componentes via **shadcn/ui** para acessibilidade e customização.
 - Persistência em **PostgreSQL** via **NeonDB** (MVP: serverless; futuro: self-hosted) com **Drizzle ORM** para type-safety.
 - Autenticação com **Better Auth** (FOSS, flexível) integrado com Drizzle adapter.
-- Armazenamento de arquivos em **MinIO** (S3-compatível, self-hosted ready) para soberania de dados.
+- Armazenamento de arquivos em **Supabase Storage** (MVP: managed; futuro: MinIO self-hosted) para soberania de dados.
 
 > **Obs.:** Esta stack foi escolhida para balancear produtividade, segurança, soberania e facilidade de migração para infraestrutura própria.
 
@@ -49,12 +49,12 @@
         │                              │
         │                              │
 ┌───────▼──────────┐      ┌────────────▼──────────────┐
-│   PostgreSQL     │      │      MinIO Storage         │
-│   (NeonDB)       │      │   (S3-compatível)          │
-│                  │      │                            │
-│  - Users         │      │  - Arquivos binários       │
-│  - Files         │      │  - Metadados de storage    │
-│  - Folders       │      │                            │
+│   PostgreSQL     │      │   Supabase Storage         │
+│   (NeonDB)       │      │   (MVP: managed)           │
+│                  │      │   (Futuro: MinIO)          │
+│  - Users         │      │                            │
+│  - Files         │      │  - Arquivos binários       │
+│  - Folders       │      │  - Metadados de storage    │
 │  - Permissions   │      │                            │
 │  - Audit Logs    │      │                            │
 │  - Share Links   │      │                            │
@@ -69,7 +69,7 @@
 
 - **Contexto Arquivos & Pastas**
   - Upload, download, organização hierárquica.
-  - Integração com MinIO para storage.
+  - Integração com Supabase Storage (MVP) ou MinIO (self-hosted) para storage.
 
 - **Contexto Permissões & Compartilhamento**
   - Controle de acesso granular.
@@ -128,26 +128,32 @@
 
 ### 4.6 Armazenamento de Arquivos
 
-- **Storage:** MinIO (S3-compatível)
-- **SDK:** `@aws-sdk/client-s3` ou `minio` (cliente MinIO nativo)
-- **Configuração MVP:** MinIO local ou cloud (DigitalOcean Spaces, AWS S3, etc.)
+- **Storage MVP:** Supabase Storage (managed, similar ao NeonDB para banco)
+- **Storage Produção (self-hosted):** MinIO (S3-compatível)
+- **SDK MVP:** `@supabase/supabase-js` (cliente Supabase)
+- **SDK Produção:** `@aws-sdk/client-s3` ou `minio` (cliente MinIO nativo)
+- **Configuração MVP:** Supabase Storage (cloud managed, fácil setup)
 - **Estrutura de buckets:** Um bucket principal (`securdocs-files`) com organização por prefixos (usuário/organização).
 
 ### 4.7 Infraestrutura & Deploy
 
-- **Ambiente de deploy MVP:** Vercel (Next.js) + NeonDB + MinIO cloud ou self-hosted
-- **Ambiente de deploy produção:** Docker Compose (self-hosted) ou VPS com serviços gerenciados
+- **Ambiente de deploy MVP:** Vercel (Next.js) + NeonDB + Supabase Storage
+- **Ambiente de deploy produção:** Docker Compose (self-hosted) ou VPS com PostgreSQL + MinIO
 - **Configuração de build:**  
   - `pnpm install` (gerenciador de pacotes)
   - `pnpm run build` (Next.js build)
-- **Variáveis de ambiente principais:**
+- **Variáveis de ambiente principais (MVP):**
   - `DATABASE_URL=` (NeonDB connection string)
   - `AUTH_SECRET=` (secret para assinatura de cookies/tokens)
+  - `NEXT_PUBLIC_SUPABASE_URL=` (Supabase project URL)
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY=` (Supabase anon/public key)
+  - `SUPABASE_SERVICE_ROLE_KEY=` (Supabase service role key, server-side only)
+  - `NEXT_PUBLIC_APP_URL=` (URL base da aplicação)
+- **Variáveis de ambiente produção (self-hosted):**
   - `MINIO_ENDPOINT=` (endpoint do MinIO/S3)
   - `MINIO_ACCESS_KEY=`
   - `MINIO_SECRET_KEY=`
   - `MINIO_BUCKET_NAME=securdocs-files`
-  - `NEXT_PUBLIC_APP_URL=` (URL base da aplicação)
 
 ---
 
@@ -254,7 +260,7 @@ src/
    - Sessão do usuário (via Better Auth).
    - Permissões na pasta destino (se especificada).
    - Tipo e tamanho do arquivo (Zod validation).
-3. Arquivo é enviado para MinIO (`putObject`) com chave única (`{userId}/{timestamp}-{filename}`).
+3. Arquivo é enviado para Supabase Storage (`storage.from('bucket').upload()`) com chave única (`{userId}/{timestamp}-{filename}`).
 4. Registro é criado em DB (`files` table) com metadados:
    - `id`, `owner_id`, `folder_id`, `name`, `mime_type`, `size_bytes`, `storage_path`, `created_at`
 5. Opcional: cria entrada de auditoria em `audit_logs` (`FILE_UPLOAD`).
@@ -282,7 +288,7 @@ src/
    - Sessão do usuário (se autenticado) ou token de compartilhamento (se link público).
    - Permissões no arquivo (proprietário, compartilhado com usuário, ou link válido).
 3. Busca metadados do arquivo em `files`.
-4. Gera URL pré-assinada do MinIO (ou faz proxy do arquivo).
+4. Busca arquivo do Supabase Storage (`storage.from('bucket').download()`) ou gera URL pré-assinada (ou faz proxy do arquivo).
 5. Registra evento de auditoria (`FILE_DOWNLOAD`).
 6. Retorna arquivo ou redireciona para URL pré-assinada.
 
@@ -603,20 +609,22 @@ export const auth = betterAuth({
 });
 ```
 
-### 16.3 Configuração do MinIO
+### 16.3 Configuração do Supabase Storage (MVP)
 
 ```typescript
 // lib/storage/client.ts
-import { S3Client } from "@aws-sdk/client-s3";
+import { createClient } from '@supabase/supabase-js';
 
-export const s3Client = new S3Client({
-  endpoint: process.env.MINIO_ENDPOINT,
-  region: "us-east-1", // MinIO não usa região, mas SDK requer
-  credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY!,
-    secretAccessKey: process.env.MINIO_SECRET_KEY!,
-  },
-  forcePathStyle: true, // necessário para MinIO
-});
+export const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // Use service role key for server-side operations
+);
+
+// Para operações de storage:
+// Upload: await supabase.storage.from('securdocs-files').upload(path, file)
+// Download: await supabase.storage.from('securdocs-files').download(path)
+// Get public URL: supabase.storage.from('securdocs-files').getPublicUrl(path)
 ```
+
+**Nota:** Para produção self-hosted, migrar para MinIO usando `@aws-sdk/client-s3` ou `minio` (ver MIGRATION_SELF_HOSTED.md).
 

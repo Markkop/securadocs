@@ -51,11 +51,11 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
   - Adicionar componentes básicos: `button`, `input`, `card`, `dialog`, `dropdown-menu`
   - Configurar tema e cores
 
-- [ ] **0.4** Configurar MinIO/S3 Storage
-  - Instalar `@aws-sdk/client-s3` ou `minio`
-  - Criar `lib/storage/client.ts` com cliente S3/MinIO
-  - Configurar variáveis de ambiente (`MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET_NAME`)
-  - Criar bucket no MinIO (manualmente ou via script)
+- [ ] **0.4** Configurar Supabase Storage (MVP)
+  - Instalar `@supabase/supabase-js`
+  - Criar `lib/storage/client.ts` com cliente Supabase
+  - Configurar variáveis de ambiente (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`)
+  - Criar bucket `securdocs-files` no Supabase Storage (via dashboard ou API)
 
 - [ ] **0.5** Estrutura de Pastas Next.js
   - Criar estrutura de pastas conforme TECH_SPECS.md
@@ -66,7 +66,7 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
 - [ ] Drizzle conecta ao NeonDB e migrations aplicadas
 - [ ] Better Auth funciona (pode testar login básico)
 - [ ] shadcn/ui componentes renderizam corretamente
-- [ ] Cliente MinIO conecta e lista buckets
+- [ ] Cliente Supabase Storage conecta e lista buckets
 - [ ] Estrutura de pastas criada e organizada
 
 **Validação:**
@@ -101,7 +101,7 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
   - Criar componente `FileUpload` (drag & drop ou input file)
   - Criar rota `/api/files/upload` (Route Handler)
   - Validar arquivo (tipo, tamanho) com Zod
-  - Upload para MinIO com chave única (`{userId}/{timestamp}-{filename}`)
+  - Upload para Supabase Storage com chave única (`{userId}/{timestamp}-{filename}`)
   - Criar registro em `files` table via Drizzle
   - Feedback visual de progresso e sucesso/erro
 
@@ -114,7 +114,7 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
 - [ ] **1.5** Download de Arquivo
   - Criar rota `/api/files/download/[fileId]`
   - Validar que usuário é proprietário do arquivo
-  - Buscar arquivo no MinIO e retornar como stream
+  - Buscar arquivo do Supabase Storage e retornar como stream
   - Registrar evento de auditoria (`FILE_DOWNLOAD`)
 
 **Critérios de Aceitação:**
@@ -127,7 +127,7 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
 **Validação:**
 - Testar fluxo completo: registro → login → upload → listagem → download
 - Validar que arquivos de um usuário não aparecem para outro
-- Verificar que arquivos estão sendo salvos no MinIO
+- Verificar que arquivos estão sendo salvos no Supabase Storage
 
 ---
 
@@ -167,7 +167,7 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
   - Adicionar ação "Renomear" no menu de contexto
   - Criar rotas `/api/files/rename` e `/api/folders/rename`
   - Validar nome único dentro da mesma pasta
-  - Atualizar nome no banco (e opcionalmente no MinIO se necessário)
+  - Atualizar nome no banco (e opcionalmente no Supabase Storage se necessário)
 
 - [ ] **2.6** Busca de Arquivos
   - Adicionar campo de busca na interface
@@ -295,7 +295,7 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
   - Adicionar ação "Deletar" no menu de contexto
   - Criar rotas `/api/files/delete` e `/api/folders/delete`
   - Validar permissões (apenas proprietário ou admin)
-  - Deletar arquivo do MinIO e registro do banco
+  - Deletar arquivo do Supabase Storage e registro do banco
   - Registrar evento de auditoria
 
 - [ ] **4.6** Refinamentos de UI/UX
@@ -342,7 +342,7 @@ Fase 0: Setup
 ├── Drizzle + NeonDB
 ├── Better Auth
 ├── shadcn/ui
-└── MinIO Storage
+└── Supabase Storage
     ↓
 Fase 1: Micro MVP
 ├── Autenticação (login/registro)
