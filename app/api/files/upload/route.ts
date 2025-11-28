@@ -57,9 +57,10 @@ export async function POST(request: NextRequest) {
     const userId = session.user.id;
     console.log(`[UPLOAD] Usuário autenticado: ${userId}`);
 
-    // Obter arquivo do FormData
+    // Obter arquivo e folderId do FormData
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
+    const folderId = formData.get("folderId") as string | null;
 
     if (!file) {
       console.log("[UPLOAD] Erro: Nenhum arquivo enviado");
@@ -67,6 +68,31 @@ export async function POST(request: NextRequest) {
         { error: "Nenhum arquivo enviado" },
         { status: 400 }
       );
+    }
+
+    // Validate folderId if provided
+    if (folderId) {
+      const db = getDb();
+      const { folders } = await import("@/lib/db/schema");
+      const { eq, and } = await import("drizzle-orm");
+      
+      const [folder] = await db
+        .select({ id: folders.id })
+        .from(folders)
+        .where(
+          and(
+            eq(folders.id, folderId),
+            eq(folders.ownerId, userId)
+          )
+        );
+
+      if (!folder) {
+        console.log("[UPLOAD] Erro: Pasta não encontrada ou sem permissão");
+        return NextResponse.json(
+          { error: "Pasta não encontrada ou sem permissão" },
+          { status: 404 }
+        );
+      }
     }
 
     console.log(`[UPLOAD] Arquivo recebido: ${file.name} (${file.size} bytes, ${file.type})`);
@@ -125,7 +151,6 @@ export async function POST(request: NextRequest) {
     if (uploadError) {
       console.error("[UPLOAD] Erro no upload para Supabase:", {
         message: uploadError.message,
-        statusCode: uploadError.statusCode,
         error: uploadError,
       });
       
@@ -152,8 +177,8 @@ export async function POST(request: NextRequest) {
 
     // Criar registro no banco de dados
     console.log(`[UPLOAD] Criando registro no banco de dados...`);
-    const db = getDb();
-    const [newFile] = await db
+    const dbForInsert = getDb();
+    const [newFile] = await dbForInsert
       .insert(files)
       .values({
         ownerId: userId,
@@ -161,6 +186,7 @@ export async function POST(request: NextRequest) {
         mimeType: file.type,
         sizeBytes: file.size,
         storagePath: storagePath,
+        folderId: folderId || null,
       })
       .returning();
 
@@ -177,6 +203,7 @@ export async function POST(request: NextRequest) {
           fileName: file.name,
           fileSize: file.size,
           mimeType: file.type,
+          folderId: folderId || null,
         },
       });
     } catch (auditError) {

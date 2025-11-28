@@ -8,25 +8,33 @@ import {
   File,
   Download,
   MoreVertical,
+  Pencil,
+  Move,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-interface FileData {
+export interface FileData {
   id: string;
   name: string;
   mimeType: string | null;
   sizeBytes: number;
+  folderId?: string | null;
   createdAt: Date;
 }
 
 interface FileItemProps {
   file: FileData;
+  onRename?: (file: FileData) => void;
+  onMove?: (file: FileData) => void;
+  onDelete?: (file: FileData) => void;
 }
 
 function getFileIcon(mimeType: string | null) {
@@ -64,7 +72,7 @@ function formatDate(date: Date): string {
   }).format(new Date(date));
 }
 
-export function FileItem({ file }: FileItemProps) {
+export function FileItem({ file, onRename, onMove, onDelete }: FileItemProps) {
   const Icon = getFileIcon(file.mimeType);
 
   const handleDownload = () => {
@@ -105,6 +113,22 @@ export function FileItem({ file }: FileItemProps) {
             <DropdownMenuItem onClick={handleDownload}>
               <Download className="w-4 h-4 mr-2" />
               Baixar
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRename?.(file)}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Renomear
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onMove?.(file)}>
+              <Move className="w-4 h-4 mr-2" />
+              Mover
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => onDelete?.(file)}
+              className="text-red-600 dark:text-red-400"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Excluir
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

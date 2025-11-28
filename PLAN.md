@@ -3,11 +3,11 @@
 ## 1. Metadados
 
 - **Nome do projeto:** SecuraDocs
-- **Versão do documento:** v0.3
+- **Versão do documento:** v0.4
 - **Data:** 2025-01-28
-- **Última atualização:** 2025-11-28 (Fase 0 e Fase 1 completas)
+- **Última atualização:** 2025-11-28 (Fase 0, 1 e 2 completas)
 - **Autor(es):** Equipe SecuraDocs
-- **Status:** Em Desenvolvimento (Fase 2 pendente)
+- **Status:** Em Desenvolvimento (Fase 3 pendente)
 
 ---
 
@@ -140,69 +140,79 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
 
 ---
 
-### Fase 2: MVP Core — Organização e Pastas
+### Fase 2: MVP Core — Organização e Pastas ✅ COMPLETA
 
 **Objetivo:** Adicionar sistema de pastas para organização hierárquica de arquivos.
 
-**Duração estimada:** 6-10 horas
+**Status:** Completa (2025-11-28)
 
 #### Tarefas
 
-- [ ] **2.1** Criação de Pastas
-  - Adicionar botão "Nova Pasta" na interface
-  - Criar rota `/api/folders/create` (POST)
-  - Validar nome da pasta e permissões
-  - Criar registro em `folders` table via Drizzle
-  - Suportar criação de pastas dentro de pastas (`parentFolderId`)
+- [x] **2.1** Criação de Pastas ✅
+  - Criado componente `CreateFolderDialog` (`components/files/create-folder-dialog.tsx`)
+  - Criada rota `/api/folders` (GET para listar, POST para criar)
+  - Validação de nome, duplicatas e permissões de pasta pai
+  - Registro em `folders` table via Drizzle com `parentFolderId` opcional
+  - Registro de evento de auditoria (`FOLDER_CREATE`)
 
-- [ ] **2.2** Navegação Hierárquica
-  - Criar componente `FolderTree` ou `Breadcrumbs`
-  - Criar rota `/files/[folderId]` para navegar em pastas
-  - Buscar arquivos e subpastas da pasta atual
-  - Exibir hierarquia visual (árvore ou breadcrumbs)
+- [x] **2.2** Navegação Hierárquica ✅
+  - Criado componente `Breadcrumbs` (`components/files/breadcrumbs.tsx`)
+  - Convertida rota `/files` para catch-all `/files/[[...folderId]]/page.tsx`
+  - Criada rota `/api/folders/[folderId]` (GET) para detalhes e caminho da pasta
+  - API `/api/files` atualizada para filtrar por `folderId` e retornar pastas + arquivos
+  - Criado componente `FolderItem` (`components/files/folder-item.tsx`)
 
-- [ ] **2.3** Upload em Pasta Específica
-  - Modificar componente `FileUpload` para aceitar `folderId`
-  - Atualizar rota de upload para associar arquivo à pasta
-  - Validar permissões na pasta destino
+- [x] **2.3** Upload em Pasta Específica ✅
+  - Componente `FileUpload` modificado para aceitar prop `folderId`
+  - Rota `/api/files/upload` atualizada para receber `folderId` no FormData
+  - Validação de propriedade da pasta destino
 
-- [ ] **2.4** Mover Arquivos/Pastas
-  - Adicionar ação "Mover" no menu de contexto de arquivos/pastas
-  - Criar rota `/api/files/move` e `/api/folders/move`
-  - Validar que destino é válido (não criar loops)
-  - Atualizar `folderId` no banco
+- [x] **2.4** Mover Arquivos/Pastas ✅
+  - Criado componente `MoveDialog` (`components/files/move-dialog.tsx`) com navegação de pastas
+  - Criada rota `/api/files/[fileId]/move` (PATCH)
+  - Criada rota `/api/folders/[folderId]/move` (PATCH) com validação anti-loop
+  - Ações "Mover" adicionadas nos menus de contexto
 
-- [ ] **2.5** Renomear Arquivos/Pastas
-  - Adicionar ação "Renomear" no menu de contexto
-  - Criar rotas `/api/files/rename` e `/api/folders/rename`
-  - Validar nome único dentro da mesma pasta
-  - Atualizar nome no banco (e opcionalmente no Supabase Storage se necessário)
+- [x] **2.5** Renomear Arquivos/Pastas ✅
+  - Criado componente `RenameDialog` (`components/files/rename-dialog.tsx`)
+  - Criada rota `/api/files/[fileId]/rename` (PATCH)
+  - Criada rota `/api/folders/[folderId]/rename` (PATCH) com validação de duplicatas
+  - Ações "Renomear" adicionadas nos menus de contexto
 
-- [ ] **2.6** Busca de Arquivos
-  - Adicionar campo de busca na interface
-  - Criar rota `/api/files/search?q=...`
-  - Buscar por nome de arquivo/pasta (LIKE query no Drizzle)
-  - Exibir resultados com contexto (em qual pasta está)
+- [x] **2.6** Busca de Arquivos ✅
+  - Criado componente `SearchBox` (`components/files/search-box.tsx`) com dropdown de resultados
+  - Criada rota `/api/search` (GET) com busca ILIKE por nome
+  - Resultados incluem contexto (caminho da pasta)
+  - Debounce de 300ms para evitar requisições excessivas
+
+- [x] **2.7** Deletar Arquivos/Pastas ✅ (Bônus)
+  - Criada rota `/api/files/[fileId]` (DELETE) com remoção do Storage
+  - Criada rota `/api/folders/[folderId]` (DELETE) com exclusão recursiva
+  - Confirmação antes de ações destrutivas
+  - Registro de eventos de auditoria (`FILE_DELETE`, `FOLDER_DELETE`)
 
 **Critérios de Aceitação:**
-- [ ] Usuário consegue criar pastas e navegar entre elas
-- [ ] Usuário consegue fazer upload em pasta específica
-- [ ] Usuário consegue mover arquivos/pastas entre pastas
-- [ ] Usuário consegue renomear recursos
-- [ ] Busca encontra arquivos por nome
+- [x] Usuário consegue criar pastas e navegar entre elas
+- [x] Usuário consegue fazer upload em pasta específica
+- [x] Usuário consegue mover arquivos/pastas entre pastas
+- [x] Usuário consegue renomear recursos
+- [x] Busca encontra arquivos por nome
+- [x] Usuário consegue deletar arquivos e pastas
 
 **Validação:**
-- Testar criação de estrutura hierárquica complexa
-- Validar que mover funciona corretamente
-- Testar busca com diferentes termos
+- ✅ Criação de estrutura hierárquica testada (pastas aninhadas)
+- ✅ Navegação via breadcrumbs funciona corretamente
+- ✅ Upload em pastas específicas funciona
+- ✅ Mover arquivos/pastas validado (incluindo proteção anti-loop)
+- ✅ Renomear funciona com validação de duplicatas
+- ✅ Busca retorna resultados com contexto de pasta
+- ✅ Deletar remove arquivos do Storage e registros do banco
 
 ---
 
 ### Fase 3: MVP Compartilhamento — Links e Permissões
 
 **Objetivo:** Implementar sistema de compartilhamento com controle de permissões.
-
-**Duração estimada:** 8-12 horas
 
 #### Tarefas
 
@@ -267,25 +277,22 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
 
 **Objetivo:** Adicionar sistema de auditoria completo e refinamentos finais de UI/UX e segurança.
 
-**Duração estimada:** 6-10 horas
+**Nota:** Deletar arquivos/pastas já implementado na Fase 2.
 
 #### Tarefas
 
-- [ ] **4.1** Sistema de Logs de Auditoria
-  - Criar helper `lib/audit/logger.ts` para registrar eventos
-  - Registrar eventos em todas as operações críticas:
-    - `LOGIN`, `LOGOUT`
-    - `FILE_UPLOAD`, `FILE_DOWNLOAD`, `FILE_DELETE`
-    - `FOLDER_CREATE`, `FOLDER_DELETE`
+- [ ] **4.1** Sistema de Logs de Auditoria (Expandir)
+  - Helper `lib/audit/logger.ts` já existe (criado na Fase 1)
+  - Adicionar eventos faltantes:
+    - `LOGIN`, `LOGOUT` (integrar com Better Auth hooks)
     - `PERMISSION_CREATE`, `PERMISSION_REVOKE`
     - `SHARE_LINK_CREATE`, `SHARE_LINK_REVOKE`
-  - Incluir metadados relevantes (IP opcional, resourceId, etc.)
+  - Incluir IP address quando disponível
 
 - [ ] **4.2** Visualização de Logs
   - Criar página `/audit` ou `/settings/audit`
   - Listar eventos com filtros:
     - Por tipo de ação
-    - Por usuário
     - Por período (data início/fim)
     - Por recurso (arquivo/pasta específico)
   - Paginação para grandes volumes de logs
@@ -300,28 +307,19 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
   - Exibir últimos N eventos do usuário logado
   - Exibir estatísticas básicas (arquivos totais, espaço usado)
 
-- [ ] **4.5** Deletar Arquivos/Pastas
-  - Adicionar ação "Deletar" no menu de contexto
-  - Criar rotas `/api/files/delete` e `/api/folders/delete`
-  - Validar permissões (apenas proprietário ou admin)
-  - Deletar arquivo do Supabase Storage e registro do banco
-  - Registrar evento de auditoria
-
-- [ ] **4.6** Refinamentos de UI/UX
+- [ ] **4.5** Refinamentos de UI/UX
   - Melhorar feedback visual (loading states, toasts)
-  - Adicionar confirmações para ações destrutivas (deletar)
   - Melhorar responsividade mobile
-  - Adicionar ícones apropriados (lucide-react)
   - Polir animações e transições
 
-- [ ] **4.7** Endurecimento de Segurança
+- [ ] **4.6** Endurecimento de Segurança
   - Adicionar rate limiting em endpoints críticos (login, upload)
   - Validar e sanitizar todas as entradas
   - Adicionar headers de segurança (CSP, HSTS)
   - Revisar e testar validação de permissões
   - Testar proteção contra path traversal
 
-- [ ] **4.8** Tratamento de Erros
+- [ ] **4.7** Tratamento de Erros
   - Criar páginas de erro customizadas (404, 500)
   - Melhorar mensagens de erro para usuário
   - Logging de erros no servidor (sem expor detalhes sensíveis)
@@ -331,14 +329,12 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
 - [ ] Usuário consegue visualizar e filtrar logs
 - [ ] Logs podem ser exportados
 - [ ] Dashboard mostra atividades recentes
-- [ ] Deletar funciona corretamente
 - [ ] UI é polida e responsiva
 - [ ] Segurança básica implementada
 
 **Validação:**
 - Testar que todos os eventos são logados
 - Validar filtros e exportação de logs
-- Testar ações destrutivas (deletar)
 - Revisar segurança (tentar acessar recursos sem permissão)
 - Testar em diferentes dispositivos (mobile, desktop)
 
@@ -628,4 +624,88 @@ Seguir a ordem das fases, mas dentro de cada fase, priorizar:
 3. Upload em pasta específica
 4. Mover/renomear arquivos e pastas
 5. Busca de arquivos
+
+---
+
+### Sessão 2025-11-28 (continuação)
+
+**Fase 2 Completa — Sistema de Pastas e Organização**
+
+#### Arquivos Criados
+
+**API Routes:**
+- `app/api/folders/route.ts` - GET (listar pastas) e POST (criar pasta)
+- `app/api/folders/[folderId]/route.ts` - GET (detalhes + caminho) e DELETE (exclusão recursiva)
+- `app/api/folders/[folderId]/move/route.ts` - PATCH (mover pasta)
+- `app/api/folders/[folderId]/rename/route.ts` - PATCH (renomear pasta)
+- `app/api/files/[fileId]/route.ts` - DELETE (excluir arquivo)
+- `app/api/files/[fileId]/move/route.ts` - PATCH (mover arquivo)
+- `app/api/files/[fileId]/rename/route.ts` - PATCH (renomear arquivo)
+- `app/api/search/route.ts` - GET (busca por nome com contexto de pasta)
+
+**Componentes:**
+- `components/files/breadcrumbs.tsx` - Navegação hierárquica com links
+- `components/files/folder-item.tsx` - Item de pasta com ações (renomear, mover, deletar)
+- `components/files/create-folder-dialog.tsx` - Dialog para criar nova pasta
+- `components/files/move-dialog.tsx` - Dialog com navegação de pastas para mover
+- `components/files/rename-dialog.tsx` - Dialog para renomear arquivo/pasta
+- `components/files/search-box.tsx` - Campo de busca com dropdown de resultados
+
+**Páginas:**
+- `app/(app)/files/[[...folderId]]/page.tsx` - Página de arquivos com catch-all route
+
+#### Arquivos Modificados
+
+- `app/api/files/route.ts` - Adicionado filtro por `folderId` e retorno de subpastas
+- `app/api/files/upload/route.ts` - Adicionado suporte a `folderId` no FormData
+- `components/files/file-upload.tsx` - Adicionada prop `folderId`
+- `components/files/file-item.tsx` - Adicionadas ações de renomear, mover, deletar
+- `components/files/file-list.tsx` - Exibe pastas + arquivos, integra dialogs
+
+#### Problemas Resolvidos
+
+1. **Array mutation em exclusão de pastas**
+   - Problema: `folderIds.reverse()` mutava o array original
+   - Solução: Usar `[...folderIds].reverse()` para reverter uma cópia
+
+2. **Segurança na busca de caminhos**
+   - Problema: `getFolderPath` não verificava ownership das pastas ancestrais
+   - Solução: Adicionada verificação `eq(folders.ownerId, userId)` na query
+
+3. **Erro TypeScript com dotenv**
+   - Problema: `scripts/test-storage.ts` importava `dotenv` não instalado
+   - Solução: Instalado `dotenv` como dev dependency
+
+#### Dependências Instaladas
+
+```json
+{
+  "dotenv": "^17.2.3" (devDependency)
+}
+```
+
+#### Estrutura de Rotas Final (Fase 2)
+
+```
+/api/folders                    GET, POST
+/api/folders/[folderId]         GET, DELETE
+/api/folders/[folderId]/move    PATCH
+/api/folders/[folderId]/rename  PATCH
+/api/files                      GET
+/api/files/upload               POST
+/api/files/download/[fileId]    GET
+/api/files/[fileId]             DELETE
+/api/files/[fileId]/move        PATCH
+/api/files/[fileId]/rename      PATCH
+/api/search                     GET
+```
+
+#### Próximos Passos (Fase 3)
+
+1. Implementar compartilhamento por link
+2. Página pública de compartilhamento
+3. Compartilhamento com usuários específicos
+4. Gerenciamento de permissões
+5. Validação de permissões em operações
+6. Expiração de links
 

@@ -8,10 +8,11 @@ import { Card } from "@/components/ui/card";
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
 interface FileUploadProps {
+  folderId?: string | null;
   onUploadComplete?: () => void;
 }
 
-export function FileUpload({ onUploadComplete }: FileUploadProps) {
+export function FileUpload({ folderId, onUploadComplete }: FileUploadProps) {
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [progress, setProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -66,6 +67,9 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
+      if (folderId) {
+        formData.append("folderId", folderId);
+      }
 
       // Simular progresso (XHR não é usado para simplificar)
       const progressInterval = setInterval(() => {
@@ -143,7 +147,6 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             type="file"
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             onChange={handleFileSelect}
-            disabled={status === "uploading"}
           />
         )}
 
