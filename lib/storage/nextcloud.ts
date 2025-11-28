@@ -53,6 +53,8 @@ async function ensureDirectory(config: NextcloudConfig, dirPath: string): Promis
       method: "MKCOL",
       headers: {
         Authorization: getAuthHeader(config),
+        "User-Agent": "SecuraDocs/1.0",
+        "OCS-APIREQUEST": "true",
       },
     });
 
@@ -73,6 +75,8 @@ async function ensureDirectory(config: NextcloudConfig, dirPath: string): Promis
           method: "MKCOL",
           headers: {
             Authorization: getAuthHeader(config),
+            "User-Agent": "SecuraDocs/1.0",
+            "OCS-APIREQUEST": "true",
           },
         });
         console.log(`[Nextcloud] MKCOL retry response for ${dirPath}: ${retryResponse.status} ${retryResponse.statusText}`);
@@ -118,8 +122,11 @@ export async function uploadFile(
       headers: {
         Authorization: getAuthHeader(config),
         "Content-Type": contentType,
+        "Content-Length": String(data.length),
+        "User-Agent": "SecuraDocs/1.0",
+        "OCS-APIREQUEST": "true",
       },
-      body: new Uint8Array(data),
+      body: Buffer.from(data),
     });
 
     console.log(`[Nextcloud] Response status: ${response.status} ${response.statusText}`);
@@ -166,6 +173,8 @@ export async function downloadFile(storagePath: string): Promise<DownloadResult>
       method: "GET",
       headers: {
         Authorization: getAuthHeader(config),
+        "User-Agent": "SecuraDocs/1.0",
+        "OCS-APIREQUEST": "true",
       },
     });
 
@@ -206,6 +215,8 @@ export async function deleteFile(storagePath: string): Promise<{ success: boolea
       method: "DELETE",
       headers: {
         Authorization: getAuthHeader(config),
+        "User-Agent": "SecuraDocs/1.0",
+        "OCS-APIREQUEST": "true",
       },
     });
 
@@ -241,6 +252,8 @@ export async function checkConnection(): Promise<{ connected: boolean; error?: s
       headers: {
         Authorization: getAuthHeader(config),
         Depth: "0",
+        "User-Agent": "SecuraDocs/1.0",
+        "OCS-APIREQUEST": "true",
       },
     });
 
