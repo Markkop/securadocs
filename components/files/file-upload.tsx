@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { Upload, X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { toast } from "sonner";
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
@@ -92,6 +93,7 @@ export function FileUpload({ folderId, onUploadComplete }: FileUploadProps) {
       setProgress(100);
       setStatus("success");
       setSelectedFile(null);
+      toast.success("Arquivo enviado com sucesso!");
 
       // Notificar que o upload foi concluído
       if (onUploadComplete) {
@@ -103,9 +105,9 @@ export function FileUpload({ folderId, onUploadComplete }: FileUploadProps) {
       }
     } catch (error) {
       setStatus("error");
-      setErrorMessage(
-        error instanceof Error ? error.message : "Erro ao fazer upload"
-      );
+      const message = error instanceof Error ? error.message : "Erro ao fazer upload";
+      setErrorMessage(message);
+      toast.error(message);
     }
   };
 

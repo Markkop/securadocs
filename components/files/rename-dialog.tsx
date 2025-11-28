@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 interface RenameDialogProps {
   open: boolean;
@@ -78,10 +79,13 @@ export function RenameDialog({
         throw new Error(data.error || "Erro ao renomear");
       }
 
+      toast.success("Renomeado com sucesso!");
       onOpenChange(false);
       onRenameComplete?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao renomear");
+      const message = err instanceof Error ? err.message : "Erro ao renomear";
+      setError(message);
+      toast.error(message);
     } finally {
       setIsRenaming(false);
     }

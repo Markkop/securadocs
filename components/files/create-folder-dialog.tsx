@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 interface CreateFolderDialogProps {
   parentFolderId?: string | null;
@@ -56,11 +57,14 @@ export function CreateFolderDialog({
       }
 
       // Success - close dialog and notify parent
+      toast.success(`Pasta "${folderName}" criada com sucesso!`);
       setOpen(false);
       setFolderName("");
       onFolderCreated?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao criar pasta");
+      const message = err instanceof Error ? err.message : "Erro ao criar pasta";
+      setError(message);
+      toast.error(message);
     } finally {
       setIsCreating(false);
     }

@@ -45,6 +45,9 @@ export default async function AppLayout({
             <Link href="/files">
               <Button variant="ghost">Arquivos</Button>
             </Link>
+            <Link href="/audit">
+              <Button variant="ghost">Auditoria</Button>
+            </Link>
             <SignOutButton variant="ghost">Sair</SignOutButton>
           </div>
         </div>

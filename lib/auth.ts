@@ -1,7 +1,9 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware } from "better-auth/api";
 import { getDb } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
+import { logAuditEvent } from "@/lib/audit/logger";
 
 let authInstance: ReturnType<typeof betterAuth> | null = null;
 
@@ -30,6 +32,44 @@ export function getAuth() {
       emailAndPassword: {
         enabled: true,
         requireEmailVerification: false, // MVP: desabilitar verificação de email
+      },
+      // Hooks for audit logging
+      hooks: {
+        after: createAuthMiddleware(async (ctx) => {
+          // Log LOGIN event when a new session is created via sign-in
+          if (ctx.path.startsWith("/sign-in") && ctx.context.newSession) {
+            const ipAddress =
+              ctx.request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+              ctx.request?.headers.get("x-real-ip") ||
+              undefined;
+            
+            await logAuditEvent({
+              userId: ctx.context.newSession.user.id,
+              action: "LOGIN",
+              resourceType: "user",
+              resourceId: ctx.context.newSession.user.id,
+              ipAddress,
+              metadata: {
+                userAgent: ctx.request?.headers.get("user-agent"),
+              },
+            });
+          }
+        }),
+      },
+      databaseHooks: {
+        session: {
+          delete: {
+            after: async (session) => {
+              // Log LOGOUT event when session is deleted
+              await logAuditEvent({
+                userId: session.userId,
+                action: "LOGOUT",
+                resourceType: "user",
+                resourceId: session.userId,
+              });
+            },
+          },
+        },
       },
     });
   }

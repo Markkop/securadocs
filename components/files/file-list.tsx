@@ -8,6 +8,7 @@ import { RenameDialog } from "./rename-dialog";
 import { MoveDialog } from "./move-dialog";
 import { ShareDialog } from "./share-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 
 interface FolderData {
   id: string;
@@ -101,9 +102,10 @@ export function FileList({ folderId, refreshTrigger, onRefresh }: FileListProps)
         throw new Error(data.error || "Erro ao excluir arquivo");
       }
 
+      toast.success(`Arquivo "${file.name}" excluído com sucesso`);
       onRefresh?.();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erro ao excluir arquivo");
+      toast.error(err instanceof Error ? err.message : "Erro ao excluir arquivo");
     }
   };
 
@@ -122,9 +124,10 @@ export function FileList({ folderId, refreshTrigger, onRefresh }: FileListProps)
         throw new Error(data.error || "Erro ao excluir pasta");
       }
 
+      toast.success(`Pasta "${folder.name}" excluída com sucesso`);
       onRefresh?.();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erro ao excluir pasta");
+      toast.error(err instanceof Error ? err.message : "Erro ao excluir pasta");
     }
   };
 

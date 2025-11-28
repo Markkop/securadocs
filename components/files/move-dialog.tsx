@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 interface FolderData {
   id: string;
@@ -129,10 +130,13 @@ export function MoveDialog({
         throw new Error(data.error || "Erro ao mover");
       }
 
+      toast.success("Movido com sucesso!");
       onOpenChange(false);
       onMoveComplete?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao mover");
+      const message = err instanceof Error ? err.message : "Erro ao mover";
+      setError(message);
+      toast.error(message);
     } finally {
       setMoving(false);
     }

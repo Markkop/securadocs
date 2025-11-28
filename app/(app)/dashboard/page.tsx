@@ -4,7 +4,8 @@ import { checkEnvVars } from "@/lib/env";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { SignOutButton } from "@/components/auth/sign-out-button";
+import { DashboardStats } from "@/components/dashboard/dashboard-stats";
+import { RecentActivity } from "@/components/dashboard/recent-activity";
 
 export default async function DashboardPage() {
   const envStatus = checkEnvVars();
@@ -37,44 +38,61 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Meus Arquivos</CardTitle>
-            <CardDescription>Gerencie seus arquivos</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/files">
-              <Button variant="outline" className="w-full">
-                Ver Arquivos
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+      {/* Stats Cards */}
+      <div className="mb-8">
+        <DashboardStats />
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload</CardTitle>
-            <CardDescription>Envie novos arquivos</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/files">
-              <Button className="w-full">Fazer Upload</Button>
-            </Link>
-          </CardContent>
-        </Card>
+      {/* Quick Actions and Recent Activity */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Quick Actions */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Ações Rápidas</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Meus Arquivos</CardTitle>
+                <CardDescription>Gerencie seus arquivos e pastas</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/files">
+                  <Button variant="outline" className="w-full">
+                    Ver Arquivos
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Configurações</CardTitle>
-            <CardDescription>Gerencie sua conta</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SignOutButton variant="outline" className="w-full">
-              Sair
-            </SignOutButton>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Upload</CardTitle>
+                <CardDescription>Envie novos arquivos</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/files">
+                  <Button className="w-full">Fazer Upload</Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Auditoria</CardTitle>
+                <CardDescription>Histórico de atividades</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/audit">
+                  <Button variant="outline" className="w-full">
+                    Ver Logs
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <RecentActivity />
       </div>
     </div>
   );
