@@ -3,11 +3,11 @@
 ## 1. Metadados
 
 - **Nome do projeto:** SecuraDocs
-- **Versão do documento:** v0.2
+- **Versão do documento:** v0.3
 - **Data:** 2025-01-28
-- **Última atualização:** 2025-01-28 (Fase 0 completa, Fase 1 em progresso)
+- **Última atualização:** 2025-11-28 (Fase 0 e Fase 1 completas)
 - **Autor(es):** Equipe SecuraDocs
-- **Status:** Em Desenvolvimento
+- **Status:** Em Desenvolvimento (Fase 2 pendente)
 
 ---
 
@@ -79,13 +79,11 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
 
 ---
 
-### Fase 1: Micro MVP — Autenticação + Upload Básico 🔄 EM PROGRESSO
+### Fase 1: Micro MVP — Autenticação + Upload Básico ✅ COMPLETA
 
 **Objetivo:** Ter um sistema funcional onde usuários podem se autenticar e fazer upload/download de arquivos.
 
-**Duração estimada:** 4-8 horas
-
-**Status:** Autenticação completa, Upload/Download pendente
+**Status:** Completa (2025-11-28)
 
 #### Tarefas
 
@@ -104,38 +102,41 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
   - Layout básico com header/navbar (`app/(app)/layout.tsx`)
   - Cards para navegação: Meus Arquivos, Upload, Configurações
 
-- [ ] **1.3** Upload de Arquivo Único
-  - Criar componente `FileUpload` (drag & drop ou input file)
-  - Criar rota `/api/files/upload` (Route Handler)
-  - Validar arquivo (tipo, tamanho) com Zod
+- [x] **1.3** Upload de Arquivo Único ✅
+  - Criado componente `FileUpload` (`components/files/file-upload.tsx`) com drag & drop e input file
+  - Criada rota `/api/files/upload` (Route Handler) com validação de sessão
+  - Validação de arquivo: tipos permitidos (PDF, imagens, documentos Office, texto) e tamanho máximo (50MB)
   - Upload para Supabase Storage com chave única (`{userId}/{timestamp}-{filename}`)
-  - Criar registro em `files` table via Drizzle
+  - Criação de registro em `files` table via Drizzle
   - Feedback visual de progresso e sucesso/erro
+  - Criado helper `lib/audit/logger.ts` para registrar eventos de auditoria
 
-- [ ] **1.4** Listagem de Arquivos do Usuário
-  - Criar página `/files` ou seção no dashboard
-  - Buscar arquivos do usuário logado via Drizzle
-  - Exibir lista com: nome, tamanho, data de upload
-  - Componente `FileList` com cards ou tabela
+- [x] **1.4** Listagem de Arquivos do Usuário ✅
+  - Atualizada página `/files` com integração de upload e listagem
+  - Criada rota `/api/files` (GET) para buscar arquivos do usuário logado via Drizzle
+  - Criado componente `FileList` (`components/files/file-list.tsx`) com estados de loading/empty/error
+  - Criado componente `FileItem` (`components/files/file-item.tsx`) com ícone por tipo, nome, tamanho formatado, data
 
-- [ ] **1.5** Download de Arquivo
-  - Criar rota `/api/files/download/[fileId]`
-  - Validar que usuário é proprietário do arquivo
-  - Buscar arquivo do Supabase Storage e retornar como stream
-  - Registrar evento de auditoria (`FILE_DOWNLOAD`)
+- [x] **1.5** Download de Arquivo ✅
+  - Criada rota `/api/files/download/[fileId]` (Route Handler)
+  - Validação de propriedade (usuário é dono do arquivo)
+  - Busca arquivo do Supabase Storage e retorna como stream com headers corretos
+  - Registra evento de auditoria (`FILE_DOWNLOAD`)
 
 **Critérios de Aceitação:**
 - [x] Usuário consegue se registrar e fazer login
-- [ ] Usuário consegue fazer upload de arquivo e ver na lista
-- [ ] Usuário consegue baixar arquivo próprio
-- [ ] Arquivos aparecem apenas para o proprietário
-- [ ] Logs básicos de upload/download funcionam
+- [x] Usuário consegue fazer upload de arquivo e ver na lista
+- [x] Usuário consegue baixar arquivo próprio
+- [x] Arquivos aparecem apenas para o proprietário
+- [x] Logs básicos de upload/download funcionam
 
 **Validação:**
 - ✅ Registro testado (via curl e browser)
 - ✅ Login testado (via curl e browser)
 - ✅ Logout testado (via browser)
-- Pendente: upload → listagem → download
+- ✅ Upload testado (via browser) - arquivo enviado para Supabase Storage e registro criado no DB
+- ✅ Listagem testada (via browser) - arquivos exibidos com nome, tamanho, data
+- ✅ Download testado (via browser) - arquivo baixado corretamente
 
 ---
 
@@ -517,7 +518,7 @@ Seguir a ordem das fases, mas dentro de cada fase, priorizar:
 
 ### Sessão 2025-01-27/28
 
-**Fase 0 Completa + Fase 1 Parcial**
+**Fase 0 Completa + Fase 1 Autenticação**
 
 #### Arquivos Criados/Modificados
 
@@ -566,6 +567,44 @@ Seguir a ordem das fases, mas dentro de cada fase, priorizar:
 6. **Erro "Unexpected end of JSON input" no sign-out**
    - Solução: Enviar body vazio `{}` em vez de nenhum body
 
+---
+
+### Sessão 2025-11-28
+
+**Fase 1 Completa — Upload/Download de Arquivos**
+
+#### Arquivos Criados/Modificados
+
+**Utilitários:**
+- `lib/audit/logger.ts` - Helper para registrar eventos de auditoria (FILE_UPLOAD, FILE_DOWNLOAD, etc.)
+
+**API Routes:**
+- `app/api/files/upload/route.ts` - Upload de arquivos com validação de sessão, tipo, tamanho; integração Supabase Storage
+- `app/api/files/route.ts` - Listagem de arquivos do usuário logado
+- `app/api/files/download/[fileId]/route.ts` - Download com validação de propriedade e auditoria
+
+**Componentes:**
+- `components/files/file-upload.tsx` - Componente de upload com drag & drop, progress bar, estados (idle/uploading/success/error)
+- `components/files/file-list.tsx` - Lista de arquivos com loading/empty/error states
+- `components/files/file-item.tsx` - Item individual com ícone por tipo, nome, tamanho formatado, data, ações
+
+**Páginas Atualizadas:**
+- `app/(app)/files/page.tsx` - Integração de FileUpload + FileList com refresh após upload
+
+**Scripts:**
+- `scripts/test-storage.ts` - Script para testar configuração do Supabase Storage
+
+#### Problemas Resolvidos
+
+1. **Input overlay interceptando cliques no botão de upload**
+   - Solução: Renderizar input overlay apenas quando necessário (idle + sem arquivo selecionado)
+
+2. **Bucket não encontrado no Supabase**
+   - Solução: Criar bucket `SecuraDocs1` no Supabase Dashboard e atualizar `BUCKET_NAME` em `lib/storage/client.ts`
+
+3. **Erro TypeScript em self-referential FK (folders table)**
+   - Solução: Remover `.references()` inline para `parentFolderId` (FK gerenciada pelo banco)
+
 #### Dependências Instaladas
 
 ```json
@@ -582,11 +621,11 @@ Seguir a ordem das fases, mas dentro de cada fase, priorizar:
 }
 ```
 
-#### Próximos Passos (Fase 1)
+#### Próximos Passos (Fase 2)
 
-1. Criar bucket no Supabase Storage
-2. Implementar componente `FileUpload`
-3. Criar rota `/api/files/upload`
-4. Implementar listagem de arquivos
-5. Criar rota `/api/files/download/[fileId]`
+1. Implementar criação de pastas
+2. Navegação hierárquica (breadcrumbs)
+3. Upload em pasta específica
+4. Mover/renomear arquivos e pastas
+5. Busca de arquivos
 

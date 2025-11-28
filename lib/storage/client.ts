@@ -57,4 +57,4 @@ export const supabaseAdmin = new Proxy({} as SupabaseClient, {
 });
 
 // Bucket name
-export const BUCKET_NAME = "securdocs-files";
+export const BUCKET_NAME = "SecuraDocs1";

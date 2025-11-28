@@ -93,10 +93,8 @@ export const folders = pgTable(
     ownerId: text("owner_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    parentFolderId: uuid("parent_folder_id").references(
-      () => folders.id,
-      { onDelete: "cascade" }
-    ),
+    // Self-referential FK - parent folder (nullable for root folders)
+    parentFolderId: uuid("parent_folder_id"),
     name: text("name").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
