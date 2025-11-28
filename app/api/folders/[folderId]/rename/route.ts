@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { folders } from "@/lib/db/schema";
 import { eq, and, isNull, ne } from "drizzle-orm";
 import { logAuditEvent } from "@/lib/audit/logger";
+import { canAccessResource } from "@/lib/permissions/check";
 
 // PATCH: Rename a folder
 export async function PATCH(
@@ -57,16 +58,27 @@ export async function PATCH(
       );
     }
 
-    // Validate the folder exists and belongs to user
+    // Check if user has write permission on the folder
+    const hasAccess = await canAccessResource(
+      userId,
+      "folder",
+      folderId,
+      "write"
+    );
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Você não tem permissão para renomear esta pasta" },
+        { status: 403 }
+      );
+    }
+
+    // Get the folder
     const [folder] = await db
       .select()
       .from(folders)
-      .where(
-        and(
-          eq(folders.id, folderId),
-          eq(folders.ownerId, userId)
-        )
-      );
+      .where(eq(folders.id, folderId))
+      .limit(1);
 
     if (!folder) {
       return NextResponse.json(

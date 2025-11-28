@@ -3,8 +3,9 @@ import { headers } from "next/headers";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { files } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { logAuditEvent } from "@/lib/audit/logger";
+import { canAccessResource } from "@/lib/permissions/check";
 
 // PATCH: Rename a file
 export async function PATCH(
@@ -57,16 +58,27 @@ export async function PATCH(
       );
     }
 
-    // Validate the file exists and belongs to user
+    // Check if user has write permission on the file
+    const hasAccess = await canAccessResource(
+      userId,
+      "file",
+      fileId,
+      "write"
+    );
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Você não tem permissão para renomear este arquivo" },
+        { status: 403 }
+      );
+    }
+
+    // Get the file
     const [file] = await db
       .select()
       .from(files)
-      .where(
-        and(
-          eq(files.id, fileId),
-          eq(files.ownerId, userId)
-        )
-      );
+      .where(eq(files.id, fileId))
+      .limit(1);
 
     if (!file) {
       return NextResponse.json(

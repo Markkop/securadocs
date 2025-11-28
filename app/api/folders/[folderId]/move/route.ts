@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { folders } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { logAuditEvent } from "@/lib/audit/logger";
+import { canAccessResource } from "@/lib/permissions/check";
 
 // Helper to check if targetFolderId is a descendant of folderId
 async function isDescendant(
@@ -67,16 +68,27 @@ export async function PATCH(
     const body = await request.json();
     const { targetFolderId } = body; // null means move to root
 
-    // Validate the folder exists and belongs to user
+    // Check if user has write permission on the folder
+    const hasFolderAccess = await canAccessResource(
+      userId,
+      "folder",
+      folderId,
+      "write"
+    );
+
+    if (!hasFolderAccess) {
+      return NextResponse.json(
+        { error: "Você não tem permissão para mover esta pasta" },
+        { status: 403 }
+      );
+    }
+
+    // Get the folder
     const [folder] = await db
       .select()
       .from(folders)
-      .where(
-        and(
-          eq(folders.id, folderId),
-          eq(folders.ownerId, userId)
-        )
-      );
+      .where(eq(folders.id, folderId))
+      .limit(1);
 
     if (!folder) {
       return NextResponse.json(
@@ -93,22 +105,19 @@ export async function PATCH(
       );
     }
 
-    // If targetFolderId is provided, validate it exists and belongs to user
+    // If targetFolderId is provided, validate user has write access to it
     if (targetFolderId) {
-      const [targetFolder] = await db
-        .select({ id: folders.id })
-        .from(folders)
-        .where(
-          and(
-            eq(folders.id, targetFolderId),
-            eq(folders.ownerId, userId)
-          )
-        );
+      const hasTargetAccess = await canAccessResource(
+        userId,
+        "folder",
+        targetFolderId,
+        "write"
+      );
 
-      if (!targetFolder) {
+      if (!hasTargetAccess) {
         return NextResponse.json(
-          { error: "Pasta de destino não encontrada" },
-          { status: 404 }
+          { error: "Pasta de destino não encontrada ou sem permissão" },
+          { status: 403 }
         );
       }
 

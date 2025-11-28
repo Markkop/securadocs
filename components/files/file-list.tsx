@@ -6,6 +6,7 @@ import { FileItem, FileData } from "./file-item";
 import { FolderItem } from "./folder-item";
 import { RenameDialog } from "./rename-dialog";
 import { MoveDialog } from "./move-dialog";
+import { ShareDialog } from "./share-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface FolderData {
@@ -33,6 +34,7 @@ export function FileList({ folderId, refreshTrigger, onRefresh }: FileListProps)
   // Dialog states
   const [renameResource, setRenameResource] = useState<ResourceData | null>(null);
   const [moveResource, setMoveResource] = useState<ResourceData | null>(null);
+  const [shareResource, setShareResource] = useState<ResourceData | null>(null);
 
   const fetchContents = useCallback(async () => {
     try {
@@ -74,6 +76,14 @@ export function FileList({ folderId, refreshTrigger, onRefresh }: FileListProps)
 
   const handleMoveFolder = (folder: FolderData) => {
     setMoveResource({ ...folder, type: "folder" } as ResourceData);
+  };
+
+  const handleShareFile = (file: FileData) => {
+    setShareResource({ ...file, type: "file" });
+  };
+
+  const handleShareFolder = (folder: FolderData) => {
+    setShareResource({ ...folder, type: "folder" } as ResourceData);
   };
 
   const handleDeleteFile = async (file: FileData) => {
@@ -195,6 +205,7 @@ export function FileList({ folderId, refreshTrigger, onRefresh }: FileListProps)
                 onRename={handleRenameFolder}
                 onMove={handleMoveFolder}
                 onDelete={handleDeleteFolder}
+                onShare={handleShareFolder}
               />
             ))}
             {/* Then files */}
@@ -205,6 +216,7 @@ export function FileList({ folderId, refreshTrigger, onRefresh }: FileListProps)
                 onRename={handleRenameFile}
                 onMove={handleMoveFile}
                 onDelete={handleDeleteFile}
+                onShare={handleShareFile}
               />
             ))}
           </div>
@@ -233,6 +245,17 @@ export function FileList({ folderId, refreshTrigger, onRefresh }: FileListProps)
           resourceName={moveResource.name}
           currentFolderId={folderId || null}
           onMoveComplete={handleMoveComplete}
+        />
+      )}
+
+      {/* Share Dialog */}
+      {shareResource && (
+        <ShareDialog
+          open={!!shareResource}
+          onOpenChange={(open) => !open && setShareResource(null)}
+          resourceType={shareResource.type}
+          resourceId={shareResource.id}
+          resourceName={shareResource.name}
         />
       )}
     </>

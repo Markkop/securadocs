@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Folder, MoreVertical, Pencil, Move, Trash2 } from "lucide-react";
+import { Folder, MoreVertical, Pencil, Move, Trash2, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,6 +23,7 @@ interface FolderItemProps {
   onRename?: (folder: FolderData) => void;
   onMove?: (folder: FolderData) => void;
   onDelete?: (folder: FolderData) => void;
+  onShare?: (folder: FolderData) => void;
 }
 
 function formatDate(date: Date): string {
@@ -35,7 +36,7 @@ function formatDate(date: Date): string {
   }).format(new Date(date));
 }
 
-export function FolderItem({ folder, onRename, onMove, onDelete }: FolderItemProps) {
+export function FolderItem({ folder, onRename, onMove, onDelete, onShare }: FolderItemProps) {
   return (
     <div className="flex items-center gap-4 p-4 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
       <Link
@@ -60,6 +61,11 @@ export function FolderItem({ folder, onRename, onMove, onDelete }: FolderItemPro
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onShare?.(folder)}>
+              <Share2 className="w-4 h-4 mr-2" />
+              Compartilhar
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onRename?.(folder)}>
               <Pencil className="w-4 h-4 mr-2" />
               Renomear

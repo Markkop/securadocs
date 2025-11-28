@@ -3,9 +3,10 @@ import { headers } from "next/headers";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { files } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getSupabaseAdmin, BUCKET_NAME } from "@/lib/storage/client";
 import { logAuditEvent } from "@/lib/audit/logger";
+import { canAccessResource } from "@/lib/permissions/check";
 
 export async function GET(
   request: NextRequest,
@@ -14,33 +15,41 @@ export async function GET(
   try {
     const { fileId } = await params;
 
-    // Validar sessão
+    // Try to get session (optional for download if share link is provided)
     const auth = getAuth();
     const session = await auth.api.getSession({
       headers: await headers(),
     });
 
-    if (!session) {
-      return NextResponse.json(
-        { error: "Não autorizado" },
-        { status: 401 }
-      );
-    }
-
-    const userId = session.user.id;
+    const userId = session?.user?.id || null;
 
     // Buscar arquivo no banco de dados
     const db = getDb();
     const [file] = await db
       .select()
       .from(files)
-      .where(and(eq(files.id, fileId), eq(files.ownerId, userId)))
+      .where(eq(files.id, fileId))
       .limit(1);
 
     if (!file) {
       return NextResponse.json(
         { error: "Arquivo não encontrado" },
         { status: 404 }
+      );
+    }
+
+    // Check if user has permission to download
+    const hasAccess = await canAccessResource(
+      userId,
+      "file",
+      fileId,
+      "read"
+    );
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Você não tem permissão para baixar este arquivo" },
+        { status: 403 }
       );
     }
 

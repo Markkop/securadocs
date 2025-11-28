@@ -11,6 +11,7 @@ import {
   Pencil,
   Move,
   Trash2,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +36,7 @@ interface FileItemProps {
   onRename?: (file: FileData) => void;
   onMove?: (file: FileData) => void;
   onDelete?: (file: FileData) => void;
+  onShare?: (file: FileData) => void;
 }
 
 function getFileIcon(mimeType: string | null) {
@@ -72,7 +74,7 @@ function formatDate(date: Date): string {
   }).format(new Date(date));
 }
 
-export function FileItem({ file, onRename, onMove, onDelete }: FileItemProps) {
+export function FileItem({ file, onRename, onMove, onDelete, onShare }: FileItemProps) {
   const Icon = getFileIcon(file.mimeType);
 
   const handleDownload = () => {
@@ -114,6 +116,11 @@ export function FileItem({ file, onRename, onMove, onDelete }: FileItemProps) {
               <Download className="w-4 h-4 mr-2" />
               Baixar
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onShare?.(file)}>
+              <Share2 className="w-4 h-4 mr-2" />
+              Compartilhar
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onRename?.(file)}>
               <Pencil className="w-4 h-4 mr-2" />
               Renomear

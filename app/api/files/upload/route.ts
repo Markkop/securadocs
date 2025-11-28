@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { files } from "@/lib/db/schema";
 import { getSupabaseAdmin, BUCKET_NAME } from "@/lib/storage/client";
 import { logAuditEvent } from "@/lib/audit/logger";
+import { canAccessResource } from "@/lib/permissions/check";
 
 // Tipos de arquivo permitidos
 const ALLOWED_MIME_TYPES = [
@@ -70,27 +71,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate folderId if provided
+    // Validate folderId if provided - check ownership OR write permission
     if (folderId) {
-      const db = getDb();
-      const { folders } = await import("@/lib/db/schema");
-      const { eq, and } = await import("drizzle-orm");
-      
-      const [folder] = await db
-        .select({ id: folders.id })
-        .from(folders)
-        .where(
-          and(
-            eq(folders.id, folderId),
-            eq(folders.ownerId, userId)
-          )
-        );
+      const hasAccess = await canAccessResource(
+        userId,
+        "folder",
+        folderId,
+        "write"
+      );
 
-      if (!folder) {
+      if (!hasAccess) {
         console.log("[UPLOAD] Erro: Pasta não encontrada ou sem permissão");
         return NextResponse.json(
-          { error: "Pasta não encontrada ou sem permissão" },
-          { status: 404 }
+          { error: "Pasta não encontrada ou sem permissão de escrita" },
+          { status: 403 }
         );
       }
     }

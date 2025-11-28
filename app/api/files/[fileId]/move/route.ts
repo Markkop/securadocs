@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { files, folders } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { files } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { logAuditEvent } from "@/lib/audit/logger";
+import { canAccessResource } from "@/lib/permissions/check";
 
 // PATCH: Move file to a different folder
 export async function PATCH(
@@ -34,16 +35,27 @@ export async function PATCH(
     const body = await request.json();
     const { targetFolderId } = body; // null means move to root
 
-    // Validate the file exists and belongs to user
+    // Check if user has write permission on the file
+    const hasFileAccess = await canAccessResource(
+      userId,
+      "file",
+      fileId,
+      "write"
+    );
+
+    if (!hasFileAccess) {
+      return NextResponse.json(
+        { error: "Você não tem permissão para mover este arquivo" },
+        { status: 403 }
+      );
+    }
+
+    // Get the file
     const [file] = await db
       .select()
       .from(files)
-      .where(
-        and(
-          eq(files.id, fileId),
-          eq(files.ownerId, userId)
-        )
-      );
+      .where(eq(files.id, fileId))
+      .limit(1);
 
     if (!file) {
       return NextResponse.json(
@@ -52,22 +64,19 @@ export async function PATCH(
       );
     }
 
-    // If targetFolderId is provided, validate it exists and belongs to user
+    // If targetFolderId is provided, validate user has write access to it
     if (targetFolderId) {
-      const [targetFolder] = await db
-        .select({ id: folders.id })
-        .from(folders)
-        .where(
-          and(
-            eq(folders.id, targetFolderId),
-            eq(folders.ownerId, userId)
-          )
-        );
+      const hasTargetAccess = await canAccessResource(
+        userId,
+        "folder",
+        targetFolderId,
+        "write"
+      );
 
-      if (!targetFolder) {
+      if (!hasTargetAccess) {
         return NextResponse.json(
-          { error: "Pasta de destino não encontrada" },
-          { status: 404 }
+          { error: "Pasta de destino não encontrada ou sem permissão" },
+          { status: 403 }
         );
       }
     }
