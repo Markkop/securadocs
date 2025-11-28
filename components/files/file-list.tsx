@@ -23,7 +23,6 @@ interface FileListProps {
   onRefresh?: () => void;
 }
 
-type ResourceType = "file" | "folder";
 type ResourceData = (FileData & { type: "file" }) | (FolderData & { type: "folder" });
 
 export function FileList({ folderId, refreshTrigger, onRefresh }: FileListProps) {

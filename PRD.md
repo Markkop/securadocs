@@ -188,7 +188,7 @@ Liste como RF-01, RF-02, etc.
 - **RF-02 — Upload de arquivos**
   - O sistema deve permitir upload de arquivos individuais através da interface web.
   - Deve validar tipo de arquivo e tamanho máximo configurável.
-  - Deve armazenar arquivos em storage seguro (MinIO/S3-compatível).
+  - Deve armazenar arquivos em storage seguro (Nextcloud WebDAV).
   - Deve manter metadados no banco de dados (nome, tamanho, tipo MIME, data, proprietário).
 
 - **RF-03 — Criação de pastas/coleções**
@@ -336,20 +336,23 @@ Liste como RF-01, RF-02, etc.
 ## 11. Dependências & Restrições
 
 - **Dependências externas:**
-  - NeonDB (MVP) ou PostgreSQL self-hosted (produção).
-  - MinIO ou storage S3-compatível.
-  - Infraestrutura de deploy (VPS, cloud, servidor próprio).
+  - PostgreSQL (self-hosted via Docker, compartilhado com Nextcloud)
+  - Nextcloud (self-hosted via Docker) para armazenamento de arquivos
+  - Infraestrutura de deploy (VPS, cloud, servidor próprio)
+  - Docker e Docker Compose
 
 - **Restrições de tempo:**
   - MVP deve ser desenvolvido de forma incremental, validando cada feature antes de avançar.
 
 - **Restrições de orçamento:**
   - Solução deve ser viável para organizações sem fins lucrativos (custos baixos ou zero para uso básico).
-  - NeonDB free tier suficiente para MVP.
+  - Infraestrutura self-hosted elimina custos de serviços gerenciados.
+  - VPS básico (4GB RAM) suficiente para organizações pequenas/médias.
 
 - **Restrições técnicas:**
-  - Deve funcionar em infraestrutura comum (VPS com 2GB RAM mínimo).
-  - Deve ser deployável por pessoa com conhecimento técnico básico.
+  - Deve funcionar em infraestrutura comum (VPS com 2GB RAM mínimo, recomendado 4GB+).
+  - Deve ser deployável via Docker Compose por pessoa com conhecimento técnico básico.
+  - Requer Nextcloud para armazenamento de arquivos (via WebDAV API).
 
 ---
 
@@ -382,12 +385,19 @@ Liste como RF-01, RF-02, etc.
 ## 14. Referências & Inspirações
 
 - **Projetos similares:**
-  - Nextcloud (complexo, mas referência de funcionalidades).
+  - Nextcloud (agora usado como backend de armazenamento do SecuraDocs).
   - Seafile (foco em sync, menos foco em web).
   - CryptPad (foco em colaboração e privacidade).
+
+- **Integração com Nextcloud:**
+  - SecuraDocs usa Nextcloud como backend de armazenamento via WebDAV API.
+  - PostgreSQL é compartilhado entre SecuraDocs e Nextcloud.
+  - Usuários podem acessar arquivos diretamente via interface do Nextcloud se necessário.
+  - Aplicativos mobile e desktop do Nextcloud podem sincronizar arquivos.
 
 - **Filosofia:**
   - Princípios de software livre e soberania digital.
   - Privacidade por design.
   - Acessibilidade e inclusão digital.
+  - Soberania completa de dados via infraestrutura self-hosted.
 

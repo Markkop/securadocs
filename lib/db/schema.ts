@@ -7,7 +7,6 @@ import {
   bigint,
   jsonb,
   index,
-  integer,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 

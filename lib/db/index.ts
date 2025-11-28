@@ -1,10 +1,11 @@
-import { drizzle } from "drizzle-orm/neon-http";
-import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import * as schema from "./schema";
 
-let dbInstance: ReturnType<typeof drizzle> | null = null;
+type DrizzleInstance = ReturnType<typeof drizzle>;
+let dbInstance: DrizzleInstance | null = null;
 
-export function getDb() {
+export function getDb(): DrizzleInstance {
   if (!process.env.DATABASE_URL) {
     throw new Error(
       "DATABASE_URL não está configurada. Por favor, configure as variáveis de ambiente."
@@ -12,16 +13,18 @@ export function getDb() {
   }
 
   if (!dbInstance) {
-    const sql = neon(process.env.DATABASE_URL);
-    dbInstance = drizzle(sql, { schema });
+    const client = postgres(process.env.DATABASE_URL);
+    dbInstance = drizzle(client, { schema });
   }
 
   return dbInstance;
 }
 
-// Export para compatibilidade, mas pode retornar null se não configurado
-export const db = new Proxy({} as ReturnType<typeof drizzle>, {
-  get() {
-    return getDb();
+// Export para compatibilidade
+export const db = new Proxy({} as DrizzleInstance, {
+  get(_target, prop) {
+    const instance = getDb();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (instance as any)[prop];
   },
 });

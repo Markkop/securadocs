@@ -4,7 +4,7 @@ import { getAuth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { folders, files } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getSupabaseAdmin, BUCKET_NAME } from "@/lib/storage/client";
+import { deleteFile } from "@/lib/storage/nextcloud";
 import { logAuditEvent } from "@/lib/audit/logger";
 
 interface FolderBreadcrumb {
@@ -187,19 +187,17 @@ export async function DELETE(
     // Collect all contents to delete
     const { filePaths, folderIds } = await collectFolderContents(db, userId, folderId);
 
-    // Delete files from Supabase Storage
+    // Delete files from Nextcloud Storage
     if (filePaths.length > 0) {
-      try {
-        const supabase = getSupabaseAdmin();
-        const { error: storageError } = await supabase.storage
-          .from(BUCKET_NAME)
-          .remove(filePaths);
-
-        if (storageError) {
-          console.warn("Erro ao deletar arquivos do storage (não crítico):", storageError);
+      for (const filePath of filePaths) {
+        try {
+          const result = await deleteFile(filePath);
+          if (!result.success) {
+            console.warn(`Erro ao deletar arquivo ${filePath} do storage (não crítico):`, result.error);
+          }
+        } catch (storageError) {
+          console.warn(`Erro ao deletar arquivo ${filePath} do storage (não crítico):`, storageError);
         }
-      } catch (storageError) {
-        console.warn("Erro ao deletar arquivos do storage (não crítico):", storageError);
       }
     }
 

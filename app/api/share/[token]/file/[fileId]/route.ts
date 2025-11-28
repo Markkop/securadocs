@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { shareLinks, files } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { logAuditEvent } from "@/lib/audit/logger";
-import { getSupabaseAdmin, BUCKET_NAME } from "@/lib/storage/client";
+import { downloadFile } from "@/lib/storage/nextcloud";
 
 // POST - Download a file from a shared folder
 export async function POST(
@@ -63,14 +63,11 @@ export async function POST(
       );
     }
 
-    // Download from Supabase Storage
-    const supabase = getSupabaseAdmin();
-    const { data, error: downloadError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .download(file.storagePath);
+    // Download from Nextcloud Storage via WebDAV
+    const downloadResult = await downloadFile(file.storagePath);
 
-    if (downloadError || !data) {
-      console.error("Erro ao baixar do Supabase:", downloadError);
+    if (!downloadResult.success || !downloadResult.data) {
+      console.error("Erro ao baixar do Nextcloud:", downloadResult.error);
       return NextResponse.json(
         { error: "Erro ao baixar arquivo" },
         { status: 500 }
@@ -93,9 +90,7 @@ export async function POST(
     });
 
     // Return file
-    const arrayBuffer = await data.arrayBuffer();
-
-    return new NextResponse(arrayBuffer, {
+    return new NextResponse(downloadResult.data, {
       headers: {
         "Content-Type": file.mimeType || "application/octet-stream",
         "Content-Disposition": `attachment; filename="${encodeURIComponent(file.name)}"`,

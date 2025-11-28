@@ -4,7 +4,7 @@ import { getAuth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { files } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getSupabaseAdmin, BUCKET_NAME } from "@/lib/storage/client";
+import { downloadFile } from "@/lib/storage/nextcloud";
 import { logAuditEvent } from "@/lib/audit/logger";
 import { canAccessResource } from "@/lib/permissions/check";
 
@@ -53,14 +53,11 @@ export async function GET(
       );
     }
 
-    // Buscar arquivo do Supabase Storage
-    const supabase = getSupabaseAdmin();
-    const { data, error: downloadError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .download(file.storagePath);
+    // Buscar arquivo do Nextcloud via WebDAV
+    const downloadResult = await downloadFile(file.storagePath);
 
-    if (downloadError || !data) {
-      console.error("Erro ao baixar do Supabase:", downloadError);
+    if (!downloadResult.success || !downloadResult.data) {
+      console.error("Erro ao baixar do Nextcloud:", downloadResult.error);
       return NextResponse.json(
         { error: "Erro ao baixar arquivo" },
         { status: 500 }
@@ -80,9 +77,7 @@ export async function GET(
     });
 
     // Retornar arquivo como resposta
-    const arrayBuffer = await data.arrayBuffer();
-
-    return new NextResponse(arrayBuffer, {
+    return new NextResponse(downloadResult.data, {
       headers: {
         "Content-Type": file.mimeType || "application/octet-stream",
         "Content-Disposition": `attachment; filename="${encodeURIComponent(file.name)}"`,

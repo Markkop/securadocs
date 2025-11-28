@@ -59,28 +59,10 @@ export default function SetupPage() {
                 </h3>
                 <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 dark:text-gray-300">
                   <li>
-                    <strong>NeonDB:</strong>{" "}
-                    <a
-                      href="https://neon.tech"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      Criar conta gratuita
-                    </a>{" "}
-                    e obter DATABASE_URL
+                    <strong>PostgreSQL:</strong> Local via Docker Compose (docker compose up -d postgres)
                   </li>
                   <li>
-                    <strong>Supabase:</strong>{" "}
-                    <a
-                      href="https://supabase.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      Criar conta gratuita
-                    </a>{" "}
-                    e configurar Storage
+                    <strong>Nextcloud:</strong> Para storage de arquivos via WebDAV - configure NEXTCLOUD_URL, NEXTCLOUD_USER e NEXTCLOUD_PASSWORD
                   </li>
                   <li>
                     <strong>AUTH_SECRET:</strong> Gere com{" "}

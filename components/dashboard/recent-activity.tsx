@@ -11,7 +11,6 @@ import {
   Download,
   Trash2,
   FolderPlus,
-  Share2,
   UserPlus,
   UserMinus,
   Link2,

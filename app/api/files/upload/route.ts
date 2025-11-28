@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { files } from "@/lib/db/schema";
-import { getSupabaseAdmin, BUCKET_NAME } from "@/lib/storage/client";
+import { uploadFile } from "@/lib/storage/nextcloud";
 import { logAuditEvent } from "@/lib/audit/logger";
 import { canAccessResource } from "@/lib/permissions/check";
 
@@ -115,59 +115,24 @@ export async function POST(request: NextRequest) {
     const storagePath = `${userId}/${timestamp}-${sanitizedFileName}`;
     console.log(`[UPLOAD] Caminho no storage: ${storagePath}`);
 
-    // Converter arquivo para ArrayBuffer
+    // Converter arquivo para Buffer
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
+    const buffer = Buffer.from(arrayBuffer);
     console.log(`[UPLOAD] Buffer criado: ${buffer.length} bytes`);
 
-    // Upload para Supabase Storage
-    let supabase;
-    try {
-      console.log(`[UPLOAD] Inicializando cliente Supabase...`);
-      supabase = getSupabaseAdmin();
-      console.log(`[UPLOAD] Cliente Supabase inicializado`);
-    } catch (error) {
-      console.error("[UPLOAD] Erro ao inicializar Supabase:", error);
+    // Upload para Nextcloud via WebDAV
+    console.log(`[UPLOAD] Fazendo upload para Nextcloud...`);
+    const uploadResult = await uploadFile(storagePath, buffer, file.type);
+
+    if (!uploadResult.success) {
+      console.error("[UPLOAD] Erro no upload para Nextcloud:", uploadResult.error);
       return NextResponse.json(
-        { error: "Erro de configuração do storage. Verifique as variáveis de ambiente." },
+        { error: `Erro ao fazer upload: ${uploadResult.error}` },
         { status: 500 }
       );
     }
 
-    console.log(`[UPLOAD] Fazendo upload para bucket "${BUCKET_NAME}"...`);
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(storagePath, buffer, {
-        contentType: file.type,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error("[UPLOAD] Erro no upload para Supabase:", {
-        message: uploadError.message,
-        error: uploadError,
-      });
-      
-      // Mensagens de erro mais específicas
-      if (uploadError.message?.includes("Bucket not found") || uploadError.message?.includes("not found")) {
-        return NextResponse.json(
-          { error: `Bucket "${BUCKET_NAME}" não encontrado. Crie o bucket no Supabase Dashboard.` },
-          { status: 500 }
-        );
-      }
-      if (uploadError.message?.includes("new row violates row-level security") || uploadError.message?.includes("RLS")) {
-        return NextResponse.json(
-          { error: "Erro de permissão no storage. Verifique as políticas RLS do bucket." },
-          { status: 500 }
-        );
-      }
-      return NextResponse.json(
-        { error: `Erro ao fazer upload: ${uploadError.message || JSON.stringify(uploadError)}` },
-        { status: 500 }
-      );
-    }
-
-    console.log(`[UPLOAD] Upload bem-sucedido!`);
+    console.log(`[UPLOAD] Upload para Nextcloud bem-sucedido!`);
 
     // Criar registro no banco de dados
     console.log(`[UPLOAD] Criando registro no banco de dados...`);

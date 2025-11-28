@@ -1,94 +1,99 @@
 /**
- * Script para testar a configuração do Supabase Storage
+ * Script para testar a configuração do Nextcloud Storage (WebDAV)
  * Execute com: npx tsx scripts/test-storage.ts
  */
 
 import { config } from "dotenv";
 import { resolve } from "path";
 
-// Carregar variáveis de ambiente do arquivo .env
+// Carregar variáveis de ambiente
+config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
 
-import { getSupabaseAdmin, BUCKET_NAME } from "../lib/storage/client";
+import { uploadFile, downloadFile, deleteFile, checkConnection } from "../lib/storage/nextcloud";
 
 async function testStorage() {
-  console.log("🔍 Testando configuração do Supabase Storage...\n");
+  console.log("🔍 Testando configuração do Nextcloud Storage (WebDAV)...\n");
 
   try {
     // Verificar variáveis de ambiente
     console.log("1. Verificando variáveis de ambiente...");
-    const hasUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const hasKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
-    console.log(`   ✓ NEXT_PUBLIC_SUPABASE_URL: ${hasUrl ? "✅" : "❌"}`);
-    console.log(`   ✓ SUPABASE_SERVICE_ROLE_KEY: ${hasKey ? "✅" : "❌"}\n`);
+    const hasUrl = !!process.env.NEXTCLOUD_URL;
+    const hasUser = !!process.env.NEXTCLOUD_USER;
+    const hasPassword = !!process.env.NEXTCLOUD_PASSWORD;
+    
+    console.log(`   NEXTCLOUD_URL: ${hasUrl ? "✅" : "❌"}`);
+    console.log(`   NEXTCLOUD_USER: ${hasUser ? "✅" : "❌"}`);
+    console.log(`   NEXTCLOUD_PASSWORD: ${hasPassword ? "✅" : "❌"}\n`);
 
-    if (!hasUrl || !hasKey) {
-      console.error("❌ Variáveis de ambiente não configuradas!");
+    if (!hasUrl || !hasUser || !hasPassword) {
+      console.error("❌ Variáveis de ambiente do Nextcloud não configuradas!");
+      console.log("\n📝 Configure as seguintes variáveis no .env.local:");
+      console.log("   NEXTCLOUD_URL=http://localhost:8080");
+      console.log("   NEXTCLOUD_USER=securadocs");
+      console.log("   NEXTCLOUD_PASSWORD=sua_senha");
       process.exit(1);
     }
 
-    // Inicializar cliente Supabase
-    console.log("2. Inicializando cliente Supabase...");
-    const supabase = getSupabaseAdmin();
-    console.log("   ✓ Cliente inicializado\n");
-
-    // Verificar se o bucket existe
-    console.log(`3. Verificando se o bucket "${BUCKET_NAME}" existe...`);
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-
-    if (listError) {
-      console.error(`   ❌ Erro ao listar buckets: ${listError.message}`);
+    // Testar conexão com Nextcloud
+    console.log("2. Testando conexão com Nextcloud...");
+    const connectionResult = await checkConnection();
+    
+    if (!connectionResult.connected) {
+      console.error(`   ❌ Erro na conexão: ${connectionResult.error}`);
+      console.log("\n💡 Dicas:");
+      console.log("   - Verifique se o Nextcloud está rodando (docker compose ps)");
+      console.log("   - Verifique se o usuário 'securadocs' foi criado no Nextcloud");
+      console.log("   - Verifique a senha do usuário");
       process.exit(1);
     }
+    
+    console.log("   ✅ Conexão com Nextcloud OK\n");
 
-    const bucketExists = buckets?.some((b) => b.name === BUCKET_NAME);
-    console.log(`   ${bucketExists ? "✅" : "❌"} Bucket "${BUCKET_NAME}" ${bucketExists ? "existe" : "NÃO existe"}\n`);
-
-    if (!bucketExists) {
-      console.error(`❌ O bucket "${BUCKET_NAME}" não foi encontrado!`);
-      console.log("\n📝 Para criar o bucket:");
-      console.log("   1. Acesse o Supabase Dashboard");
-      console.log("   2. Vá em Storage");
-      console.log(`   3. Crie um bucket chamado "${BUCKET_NAME}"`);
-      console.log("   4. Configure as políticas RLS conforme necessário\n");
-      process.exit(1);
-    }
-
-    // Testar upload de um arquivo pequeno
-    console.log("4. Testando upload de arquivo de teste...");
-    const testContent = new TextEncoder().encode("test file content");
+    // Testar upload de arquivo
+    console.log("3. Testando upload de arquivo...");
+    const testContent = Buffer.from("Arquivo de teste do SecuraDocs - " + new Date().toISOString());
     const testPath = `test/${Date.now()}-test.txt`;
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(testPath, testContent, {
-        contentType: "text/plain",
-        upsert: false,
-      });
+    const uploadResult = await uploadFile(testPath, testContent, "text/plain");
 
-    if (uploadError) {
-      console.error(`   ❌ Erro no upload: ${uploadError.message}`);
-      if (uploadError.message?.includes("new row violates row-level security")) {
-        console.log("\n💡 Dica: Configure as políticas RLS do bucket para permitir uploads.");
-      }
+    if (!uploadResult.success) {
+      console.error(`   ❌ Erro no upload: ${uploadResult.error}`);
       process.exit(1);
     }
 
-    console.log("   ✅ Upload de teste bem-sucedido\n");
+    console.log(`   ✅ Upload bem-sucedido: ${testPath}\n`);
 
-    // Limpar arquivo de teste
-    console.log("5. Limpando arquivo de teste...");
-    const { error: deleteError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .remove([testPath]);
+    // Testar download do arquivo
+    console.log("4. Testando download do arquivo...");
+    const downloadResult = await downloadFile(testPath);
 
-    if (deleteError) {
-      console.warn(`   ⚠️  Erro ao deletar arquivo de teste: ${deleteError.message}`);
-    } else {
-      console.log("   ✅ Arquivo de teste removido\n");
+    if (!downloadResult.success || !downloadResult.data) {
+      console.error(`   ❌ Erro no download: ${downloadResult.error}`);
+      process.exit(1);
     }
 
-    console.log("✅ Todos os testes passaram! O storage está configurado corretamente.");
+    const downloadedContent = Buffer.from(downloadResult.data).toString("utf-8");
+    const contentMatch = downloadedContent === testContent.toString("utf-8");
+    
+    console.log(`   ✅ Download bem-sucedido`);
+    console.log(`   ${contentMatch ? "✅" : "❌"} Conteúdo ${contentMatch ? "corresponde" : "NÃO corresponde"}\n`);
+
+    // Testar deleção do arquivo
+    console.log("5. Testando deleção do arquivo...");
+    const deleteResult = await deleteFile(testPath);
+
+    if (!deleteResult.success) {
+      console.warn(`   ⚠️ Erro ao deletar: ${deleteResult.error}`);
+    } else {
+      console.log("   ✅ Arquivo deletado com sucesso\n");
+    }
+
+    console.log("━".repeat(50));
+    console.log("✅ Todos os testes passaram!");
+    console.log("   O Nextcloud Storage está configurado corretamente.");
+    console.log("━".repeat(50));
+
   } catch (error) {
     console.error("❌ Erro durante os testes:", error);
     process.exit(1);

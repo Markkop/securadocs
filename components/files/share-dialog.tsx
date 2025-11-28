@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Loader2,
   Link2,
@@ -103,6 +103,7 @@ export function ShareDialog({
       fetchShareLinks();
       fetchUserPermissions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, resourceType, resourceId]);
 
   // Debounced user search
@@ -117,6 +118,7 @@ export function ShareDialog({
     }, 300);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userSearchQuery]);
 
   const fetchShareLinks = async () => {

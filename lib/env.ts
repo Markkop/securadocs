@@ -9,19 +9,32 @@ export interface EnvStatus {
 }
 
 export function checkEnvVars(): EnvStatus {
+  // Core required variables
   const required = [
     "DATABASE_URL",
     "AUTH_SECRET",
     "NEXT_PUBLIC_APP_URL",
-    "NEXT_PUBLIC_SUPABASE_URL",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    "SUPABASE_SERVICE_ROLE_KEY",
+  ];
+
+  // Nextcloud variables (for self-hosted storage)
+  const nextcloudVars = [
+    "NEXTCLOUD_URL",
+    "NEXTCLOUD_USER",
+    "NEXTCLOUD_PASSWORD",
   ];
 
   const missing: string[] = [];
   const warnings: string[] = [];
 
+  // Check core required variables
   for (const key of required) {
+    if (!process.env[key]) {
+      missing.push(key);
+    }
+  }
+
+  // Check Nextcloud variables
+  for (const key of nextcloudVars) {
     if (!process.env[key]) {
       missing.push(key);
     }

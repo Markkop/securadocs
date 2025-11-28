@@ -4,7 +4,7 @@ import { getAuth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { files } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getSupabaseAdmin, BUCKET_NAME } from "@/lib/storage/client";
+import { deleteFile } from "@/lib/storage/nextcloud";
 import { logAuditEvent } from "@/lib/audit/logger";
 
 // DELETE: Delete a file
@@ -49,15 +49,11 @@ export async function DELETE(
       );
     }
 
-    // Delete from Supabase Storage
+    // Delete from Nextcloud Storage
     try {
-      const supabase = getSupabaseAdmin();
-      const { error: storageError } = await supabase.storage
-        .from(BUCKET_NAME)
-        .remove([file.storagePath]);
-
-      if (storageError) {
-        console.warn("Erro ao deletar do storage (não crítico):", storageError);
+      const result = await deleteFile(file.storagePath);
+      if (!result.success) {
+        console.warn("Erro ao deletar do storage (não crítico):", result.error);
       }
     } catch (storageError) {
       console.warn("Erro ao deletar do storage (não crítico):", storageError);

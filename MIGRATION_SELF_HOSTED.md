@@ -1,10 +1,11 @@
-# MIGRATION_SELF_HOSTED.md — Guia de Migração para Self-Hosted
+# MIGRATION_SELF_HOSTED.md — Guia de Deploy Self-Hosted com Nextcloud
 
 ## 1. Metadados
 
 - **Nome do projeto:** SecuraDocs
-- **Versão do documento:** v0.1
+- **Versão do documento:** v0.2
 - **Data:** 2025-01-10
+- **Última atualização:** 2025-11-28 (Nextcloud Integration)
 - **Autor(es):** Equipe SecuraDocs
 - **Status:** Aprovado
 
@@ -12,24 +13,34 @@
 
 ## 2. Visão Geral
 
-Este documento descreve o processo de migração do SecuraDocs de uma infraestrutura gerenciada (NeonDB + Supabase Storage) para uma infraestrutura self-hosted completa, garantindo soberania total sobre dados e infraestrutura.
+Este documento descreve o processo de deploy do SecuraDocs em infraestrutura self-hosted utilizando **Nextcloud** como backend de armazenamento, garantindo soberania total sobre dados e infraestrutura unificada.
 
-### 2.1 Objetivos da Migração
+### 2.1 Objetivos
 
-- Migrar banco de dados PostgreSQL do NeonDB para instância self-hosted.
-- Migrar arquivos do Supabase Storage para MinIO self-hosted.
-- Manter zero downtime durante a migração (quando possível).
-- Garantir integridade dos dados durante o processo.
+- Deploy completo self-hosted com Docker Compose
+- PostgreSQL compartilhado entre SecuraDocs e Nextcloud
+- Armazenamento de arquivos via Nextcloud WebDAV API
+- Interface web unificada com reverse proxy Nginx
+- SSL/HTTPS com Let's Encrypt
 
-### 2.2 Pré-requisitos
+### 2.2 Por que Nextcloud?
+
+- **Soberania de dados:** Controle total sobre onde os arquivos são armazenados
+- **Interface web:** Acesso direto aos arquivos via browser
+- **Apps mobile/desktop:** Sincronização nativa com clientes Nextcloud
+- **Versionamento:** Histórico de versões de arquivos built-in
+- **Compartilhamento:** Sistema de compartilhamento robusto (pode ser integrado futuramente)
+- **Comunidade:** Software maduro com grande comunidade e documentação
+
+### 2.3 Pré-requisitos
 
 - Servidor/VPS com:
   - Mínimo 2GB RAM (recomendado: 4GB+)
   - 20GB+ de espaço em disco (dependendo do volume de arquivos)
   - Docker e Docker Compose instalados
   - Acesso root ou sudo
-- Domínio configurado (opcional, mas recomendado)
-- Certificado SSL (Let's Encrypt via Certbot)
+- Domínio configurado (opcional para desenvolvimento, recomendado para produção)
+- Certificado SSL (Let's Encrypt via Certbot) para produção
 
 ---
 
@@ -38,32 +49,68 @@ Este documento descreve o processo de migração do SecuraDocs de uma infraestru
 ### 3.1 Componentes
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│              Servidor/VPS Self-Hosted                   │
-│                                                         │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  Next.js App (Docker Container)                 │  │
-│  │  - Porta: 3000 (interna)                        │  │
-│  └──────────────────────────────────────────────────┘  │
-│                                                         │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  PostgreSQL (Docker Container)                   │  │
-│  │  - Porta: 5432 (interna)                        │  │
-│  │  - Volume: ./data/postgres                       │  │
-│  └──────────────────────────────────────────────────┘  │
-│                                                         │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  MinIO (Docker Container)                       │  │
-│  │  - Porta: 9000 (API), 9001 (Console)           │  │
-│  │  - Volume: ./data/minio                         │  │
-│  └──────────────────────────────────────────────────┘  │
-│                                                         │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  Nginx (Reverse Proxy)                          │  │
-│  │  - Porta: 80, 443                               │  │
-│  │  - SSL/TLS termination                          │  │
-│  └──────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                    Servidor/VPS Self-Hosted                          │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │  Nginx (Reverse Proxy + SSL)                                   │ │
+│  │  - Porta: 80, 443 (externa)                                    │ │
+│  │  - SSL/TLS termination com Let's Encrypt                       │ │
+│  │  - Routes:                                                      │ │
+│  │    • docs.dominio.com → SecuraDocs (porta 3000)                │ │
+│  │    • cloud.dominio.com → Nextcloud (porta 80)                  │ │
+│  └────────────────────────────────────────────────────────────────┘ │
+│                              │                                       │
+│         ┌────────────────────┼────────────────────┐                 │
+│         │                    │                    │                 │
+│  ┌──────▼──────────┐  ┌──────▼──────────┐  ┌──────▼──────────┐     │
+│  │  SecuraDocs     │  │  Nextcloud      │  │  PostgreSQL     │     │
+│  │  (Next.js)      │  │  (Apache)       │  │  16-alpine      │     │
+│  │                 │  │                 │  │                 │     │
+│  │  Porta: 3000    │  │  Porta: 80      │  │  Porta: 5432    │     │
+│  │  (interna)      │  │  (interna)      │  │  (interna)      │     │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘     │
+│         │                    │                    │                 │
+│         │                    │                    │                 │
+│         │  WebDAV API        │                    │                 │
+│         │◄───────────────────┤                    │                 │
+│         │                    │                    │                 │
+│         └────────────────────┴────────────────────┘                 │
+│                              │                                       │
+│  ┌───────────────────────────▼────────────────────────────────────┐ │
+│  │  Volumes Persistentes                                          │ │
+│  │  - postgres_data: /var/lib/postgresql/data                     │ │
+│  │  - nextcloud_data: /var/www/html (app + arquivos)              │ │
+│  └────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.2 Fluxo de Dados
+
+```
+Usuário
+   │
+   │ HTTPS
+   ▼
+┌─────────────────┐
+│  Nginx (SSL)    │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    │         │
+    ▼         ▼
+SecuraDocs  Nextcloud
+    │         │
+    │ WebDAV  │
+    │◄────────┤ (upload/download de arquivos)
+    │         │
+    ▼         ▼
+┌─────────────────┐
+│   PostgreSQL    │
+│ ┌─────┐ ┌─────┐ │
+│ │ sd  │ │ nc  │ │ (databases separados)
+│ └─────┘ └─────┘ │
+└─────────────────┘
 ```
 
 ---
@@ -82,38 +129,38 @@ services:
     image: postgres:16-alpine
     container_name: securdocs-postgres
     environment:
-      POSTGRES_USER: securdocs
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: securdocs
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     ports:
       - "127.0.0.1:5432:5432"  # Apenas localhost
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U securdocs"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  minio:
-    image: minio/minio:latest
-    container_name: securdocs-minio
-    command: server /data --console-address ":9001"
+  nextcloud:
+    image: nextcloud:apache
+    container_name: securdocs-nextcloud
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      NEXTCLOUD_ADMIN_USER: admin
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+      NEXTCLOUD_TRUSTED_DOMAINS: "cloud.${DOMAIN} localhost"
+      OVERWRITEPROTOCOL: https
     volumes:
-      - ./data/minio:/data
-    ports:
-      - "127.0.0.1:9000:9000"  # API
-      - "127.0.0.1:9001:9001"  # Console
+      - nextcloud_data:/var/www/html
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
 
   app:
     build:
@@ -121,20 +168,20 @@ services:
       dockerfile: Dockerfile
     container_name: securdocs-app
     environment:
-      DATABASE_URL: postgresql://securdocs:${POSTGRES_PASSWORD}@postgres:5432/securdocs
+      DATABASE_URL: postgresql://securdocs:${SECURDOCS_DB_PASSWORD}@postgres:5432/securdocs
       AUTH_SECRET: ${AUTH_SECRET}
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET_NAME: securdocs-files
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXTCLOUD_URL: http://nextcloud
+      NEXTCLOUD_USER: securadocs
+      NEXTCLOUD_PASSWORD: ${NEXTCLOUD_APP_PASSWORD}
+      NEXTCLOUD_WEBDAV_PATH: /remote.php/dav/files/securadocs
+      NEXT_PUBLIC_APP_URL: https://docs.${DOMAIN}
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
-      minio:
-        condition: service_healthy
+      nextcloud:
+        condition: service_started
     restart: unless-stopped
 
   nginx:
@@ -149,7 +196,12 @@ services:
       - "443:443"
     depends_on:
       - app
+      - nextcloud
     restart: unless-stopped
+
+volumes:
+  postgres_data:
+  nextcloud_data:
 ```
 
 ### 4.2 Arquivo `.env` para Docker
@@ -157,22 +209,71 @@ services:
 Crie um arquivo `.env` (não commitar no git):
 
 ```bash
-# PostgreSQL
-POSTGRES_PASSWORD=seu_password_seguro_aqui
+# Domain
+DOMAIN=seudominio.com
 
-# MinIO
-MINIO_ROOT_USER=admin
-MINIO_ROOT_PASSWORD=seu_password_minio_seguro_aqui
+# PostgreSQL Master
+POSTGRES_PASSWORD=senha_master_muito_segura
 
-# App
-AUTH_SECRET=seu_secret_aleatorio_aqui
-NEXT_PUBLIC_APP_URL=https://seu-dominio.com
+# Nextcloud Database
+NEXTCLOUD_DB_PASSWORD=senha_nextcloud_db_segura
 
-# Opcional: outras variáveis
+# Nextcloud Admin
+NEXTCLOUD_ADMIN_PASSWORD=senha_admin_nextcloud_segura
+
+# Nextcloud App Password (gerar após setup inicial do Nextcloud)
+NEXTCLOUD_APP_PASSWORD=gerar_no_nextcloud_depois
+
+# SecuraDocs Database
+SECURDOCS_DB_PASSWORD=senha_securdocs_db_segura
+
+# SecuraDocs Auth
+AUTH_SECRET=gerar_com_openssl_rand_base64_32
+
+# Ambiente
 NODE_ENV=production
 ```
 
-### 4.3 Dockerfile
+**Para gerar senhas seguras:**
+```bash
+# Gerar AUTH_SECRET
+openssl rand -base64 32
+
+# Gerar senhas de database
+openssl rand -hex 16
+```
+
+### 4.3 Script de Inicialização do Banco (`init-db.sql`)
+
+Crie um arquivo `init-db.sql` na raiz do projeto:
+
+```sql
+-- Este script é executado automaticamente na primeira inicialização do PostgreSQL
+
+-- Criar databases
+CREATE DATABASE nextcloud;
+CREATE DATABASE securdocs;
+
+-- Criar usuários
+CREATE USER nextcloud WITH ENCRYPTED PASSWORD 'senha_nextcloud_db_segura';
+CREATE USER securdocs WITH ENCRYPTED PASSWORD 'senha_securdocs_db_segura';
+
+-- Conceder permissões
+GRANT ALL PRIVILEGES ON DATABASE nextcloud TO nextcloud;
+GRANT ALL PRIVILEGES ON DATABASE securdocs TO securdocs;
+
+-- Configurações adicionais para Nextcloud
+\c nextcloud
+GRANT ALL ON SCHEMA public TO nextcloud;
+
+-- Configurações adicionais para SecuraDocs
+\c securdocs
+GRANT ALL ON SCHEMA public TO securdocs;
+```
+
+**Importante:** Atualize as senhas no script para corresponder às variáveis do `.env`.
+
+### 4.4 Dockerfile
 
 Crie um `Dockerfile` na raiz:
 
@@ -232,7 +333,7 @@ const nextConfig: NextConfig = {
 };
 ```
 
-### 4.4 Configuração Nginx
+### 4.5 Configuração Nginx
 
 Crie `nginx/nginx.conf`:
 
@@ -242,21 +343,26 @@ events {
 }
 
 http {
-    upstream app {
+    # Upstreams
+    upstream securdocs {
         server app:3000;
+    }
+
+    upstream nextcloud {
+        server nextcloud:80;
     }
 
     # Redirect HTTP to HTTPS
     server {
         listen 80;
-        server_name seu-dominio.com www.seu-dominio.com;
-        return 301 https://$server_name$request_uri;
+        server_name docs.seu-dominio.com cloud.seu-dominio.com;
+        return 301 https://$host$request_uri;
     }
 
-    # HTTPS server
+    # SecuraDocs (HTTPS)
     server {
         listen 443 ssl http2;
-        server_name seu-dominio.com www.seu-dominio.com;
+        server_name docs.seu-dominio.com;
 
         ssl_certificate /etc/nginx/ssl/fullchain.pem;
         ssl_certificate_key /etc/nginx/ssl/privkey.pem;
@@ -270,10 +376,11 @@ http {
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-        # Proxy settings
+        # Proxy settings for SecuraDocs
         location / {
-            proxy_pass http://app;
+            proxy_pass http://securdocs;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection 'upgrade';
@@ -284,17 +391,101 @@ http {
             proxy_cache_bypass $http_upgrade;
         }
 
-        # Max upload size (ajuste conforme necessário)
         client_max_body_size 100M;
+    }
+
+    # Nextcloud (HTTPS)
+    server {
+        listen 443 ssl http2;
+        server_name cloud.seu-dominio.com;
+
+        ssl_certificate /etc/nginx/ssl/fullchain.pem;
+        ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+        ssl_prefer_server_ciphers on;
+
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header Referrer-Policy "no-referrer" always;
+
+        # Proxy settings for Nextcloud
+        location / {
+            proxy_pass http://nextcloud;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # WebDAV support
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Port $server_port;
+        }
+
+        # Nextcloud específico - tamanho de upload maior
+        client_max_body_size 512M;
+        
+        # Timeouts para uploads grandes
+        proxy_connect_timeout 600;
+        proxy_send_timeout 600;
+        proxy_read_timeout 600;
+    }
+}
+```
+
+**Nota:** Para desenvolvimento local sem SSL, você pode criar uma versão simplificada:
+
+```nginx
+# nginx/nginx-dev.conf (sem SSL)
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream securdocs {
+        server app:3000;
+    }
+
+    upstream nextcloud {
+        server nextcloud:80;
+    }
+
+    server {
+        listen 80;
+        server_name localhost;
+
+        location / {
+            proxy_pass http://securdocs;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+    }
+
+    server {
+        listen 8080;
+        server_name localhost;
+
+        location / {
+            proxy_pass http://nextcloud;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+
+        client_max_body_size 512M;
     }
 }
 ```
 
 ---
 
-## 5. Processo de Migração
+## 5. Processo de Deploy
 
-### 5.1 Fase 1: Preparação do Ambiente Self-Hosted
+### 5.1 Fase 1: Preparação do Ambiente
 
 1. **Provisionar servidor/VPS**
    ```bash
@@ -303,32 +494,101 @@ http {
    sh get-docker.sh
    sudo usermod -aG docker $USER
    
-   # Instalar Docker Compose
-   sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-   sudo chmod +x /usr/local/bin/docker-compose
+   # Relogar para aplicar grupo docker
+   # logout e login novamente, ou:
+   newgrp docker
    ```
 
-2. **Configurar domínio e SSL**
+2. **Configurar domínio e SSL** (para produção)
    ```bash
    # Instalar Certbot
    sudo apt update
-   sudo apt install certbot python3-certbot-nginx
+   sudo apt install certbot
    
-   # Obter certificado (ajuste domínio)
-   sudo certbot certonly --standalone -d seu-dominio.com -d www.seu-dominio.com
+   # Obter certificados (ajuste os domínios)
+   sudo certbot certonly --standalone \
+     -d docs.seu-dominio.com \
+     -d cloud.seu-dominio.com
    ```
 
-3. **Criar estrutura de diretórios**
+3. **Clonar repositório e criar estrutura**
    ```bash
-   mkdir -p securdocs/{data/postgres,data/minio,nginx/ssl,nginx/logs}
+   git clone https://github.com/seu-org/securdocs.git
    cd securdocs
+   
+   # Criar diretórios necessários
+   mkdir -p nginx/{ssl,logs}
+   
+   # Copiar certificados (se usando SSL)
+   sudo cp /etc/letsencrypt/live/docs.seu-dominio.com/fullchain.pem nginx/ssl/
+   sudo cp /etc/letsencrypt/live/docs.seu-dominio.com/privkey.pem nginx/ssl/
    ```
 
-4. **Copiar arquivos de configuração**
-   - Copiar `docker-compose.yml`, `Dockerfile`, `.env`, `nginx/nginx.conf`
-   - Copiar certificados SSL para `nginx/ssl/`
+4. **Configurar variáveis de ambiente**
+   ```bash
+   cp .env.example .env
+   
+   # Editar .env com suas configurações
+   nano .env
+   
+   # Gerar AUTH_SECRET
+   echo "AUTH_SECRET=$(openssl rand -base64 32)" >> .env
+   ```
 
-### 5.2 Fase 2: Migração do Banco de Dados
+### 5.2 Fase 2: Iniciar Infraestrutura Base
+
+1. **Iniciar PostgreSQL e Nextcloud**
+   ```bash
+   # Subir apenas o banco e Nextcloud primeiro
+   docker compose up -d postgres
+   
+   # Aguardar PostgreSQL ficar saudável
+   docker compose logs -f postgres
+   # Ctrl+C quando ver "database system is ready to accept connections"
+   
+   # Subir Nextcloud
+   docker compose up -d nextcloud
+   
+   # Aguardar Nextcloud inicializar (pode levar alguns minutos na primeira vez)
+   docker compose logs -f nextcloud
+   ```
+
+2. **Acessar e configurar Nextcloud**
+   ```bash
+   # Se em desenvolvimento local:
+   # Acesse http://localhost:8080
+   
+   # Se em produção com SSL:
+   # Acesse https://cloud.seu-dominio.com
+   ```
+
+3. **Criar usuário técnico `securadocs` no Nextcloud**
+   
+   Via interface web:
+   - Login como admin (usuário configurado em `NEXTCLOUD_ADMIN_USER`)
+   - Vá em **Usuários** (ícone de engrenagem → Usuários)
+   - Clique em **Novo usuário**
+   - Username: `securadocs`
+   - Senha: uma senha forte (você vai substituir por app password)
+   - Clique em **Criar**
+
+4. **Gerar App Password para o SecuraDocs**
+   
+   - Faça logout do admin e login como `securadocs`
+   - Vá em **Configurações** → **Segurança**
+   - Em "Dispositivos e sessões", digite um nome: `SecuraDocs API`
+   - Clique em **Criar nova senha de aplicativo**
+   - **COPIE A SENHA GERADA** (ela não será mostrada novamente!)
+   - Atualize `NEXTCLOUD_APP_PASSWORD` no seu `.env`
+
+5. **Criar diretório base no Nextcloud**
+   
+   - Ainda logado como `securadocs`
+   - Crie uma pasta chamada `SecuraDocs` (será o diretório raiz dos arquivos)
+
+### 5.3 Fase 3: Migração do Banco de Dados (se vindo do NeonDB)
+
+Se você está migrando de uma instalação existente com NeonDB:
 
 1. **Fazer dump do NeonDB**
    ```bash
@@ -339,165 +599,181 @@ http {
    pg_dump "postgresql://user:password@neon-host/database" > backup.sql
    ```
 
-2. **Iniciar PostgreSQL self-hosted**
+2. **Restaurar dump no PostgreSQL self-hosted**
    ```bash
-   docker-compose up -d postgres
-   # Aguardar healthcheck passar
-   ```
-
-3. **Restaurar dump**
-   ```bash
-   # Copiar backup.sql para o servidor
+   # Copiar backup para o container
    docker cp backup.sql securdocs-postgres:/tmp/
    
-   # Restaurar
-   docker exec -i securdocs-postgres psql -U securdocs -d securdocs < backup.sql
+   # Restaurar no database securdocs
+   docker exec -it securdocs-postgres psql -U securdocs -d securdocs -f /tmp/backup.sql
    ```
 
-4. **Validar migração**
+3. **Validar migração**
    ```bash
    docker exec -it securdocs-postgres psql -U securdocs -d securdocs -c "SELECT COUNT(*) FROM users;"
    docker exec -it securdocs-postgres psql -U securdocs -d securdocs -c "SELECT COUNT(*) FROM files;"
    ```
 
-### 5.3 Fase 3: Migração dos Arquivos (Supabase Storage → MinIO)
+### 5.4 Fase 4: Migração dos Arquivos (Supabase Storage → Nextcloud)
 
-1. **Configurar MinIO self-hosted**
+Se você está migrando de uma instalação existente com Supabase Storage:
+
+**Script Node.js de migração:**
+
+```typescript
+// scripts/migrate-files-supabase-to-nextcloud.ts
+import { createClient } from '@supabase/supabase-js';
+import { createClient as createWebDAVClient } from 'webdav';
+import { db } from '@/lib/db';
+import { files } from '@/lib/db/schema';
+
+// Supabase (origem)
+const supabase = createClient(
+  process.env.SOURCE_SUPABASE_URL!,
+  process.env.SOURCE_SUPABASE_SERVICE_ROLE_KEY!
+);
+
+// Nextcloud WebDAV (destino)
+const nextcloud = createWebDAVClient(
+  `${process.env.NEXTCLOUD_URL}${process.env.NEXTCLOUD_WEBDAV_PATH}`,
+  {
+    username: process.env.NEXTCLOUD_USER!,
+    password: process.env.NEXTCLOUD_PASSWORD!,
+  }
+);
+
+async function migrateFiles() {
+  // Buscar todos os arquivos do banco
+  const allFiles = await db.select().from(files);
+  
+  console.log(`Migrando ${allFiles.length} arquivos...`);
+  
+  // Criar diretório base
+  try {
+    await nextcloud.createDirectory('/SecuraDocs', { recursive: true });
+  } catch (e) {
+    // Diretório pode já existir
+  }
+  
+  for (const file of allFiles) {
+    try {
+      // Download do Supabase Storage
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from('securdocs-files')
+        .download(file.storagePath);
+      
+      if (downloadError) {
+        console.error(`Erro ao baixar ${file.storagePath}:`, downloadError);
+        continue;
+      }
+      
+      // Converter Blob para Buffer
+      const buffer = Buffer.from(await fileData.arrayBuffer());
+      
+      // Upload para Nextcloud via WebDAV
+      const nextcloudPath = `/SecuraDocs/${file.storagePath}`;
+      
+      // Criar diretórios pai se necessário
+      const parentDir = nextcloudPath.substring(0, nextcloudPath.lastIndexOf('/'));
+      try {
+        await nextcloud.createDirectory(parentDir, { recursive: true });
+      } catch (e) {
+        // Pode já existir
+      }
+      
+      await nextcloud.putFileContents(nextcloudPath, buffer, {
+        contentLength: buffer.length,
+      });
+      
+      console.log(`✓ Migrado: ${file.name}`);
+    } catch (error) {
+      console.error(`Erro ao migrar ${file.name}:`, error);
+    }
+  }
+  
+  console.log('Migração concluída!');
+}
+
+migrateFiles();
+```
+
+**Para executar:**
+```bash
+# Configurar variáveis de ambiente de origem
+export SOURCE_SUPABASE_URL=https://xxx.supabase.co
+export SOURCE_SUPABASE_SERVICE_ROLE_KEY=xxx
+
+# Executar script
+npx tsx scripts/migrate-files-supabase-to-nextcloud.ts
+```
+
+### 5.5 Fase 5: Deploy da Aplicação SecuraDocs
+
+1. **Build e iniciar SecuraDocs**
    ```bash
-   docker-compose up -d minio
-   # Acessar console em http://seu-servidor:9001
-   # Criar bucket "securdocs-files"
+   # Fazer build da aplicação
+   docker compose build app
+   
+   # Iniciar todos os serviços
+   docker compose up -d
+   
+   # Verificar status
+   docker compose ps
    ```
 
-2. **Migrar arquivos do Supabase Storage para MinIO self-hosted**
-
-   Script Node.js de migração (recomendado):
-   ```typescript
-   // scripts/migrate-files-supabase-to-minio.ts
-   import { createClient } from '@supabase/supabase-js';
-   import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-   import { db } from '@/lib/db';
-   import { files } from '@/lib/db/schema';
-   
-   const supabase = createClient(
-     process.env.SOURCE_SUPABASE_URL!,
-     process.env.SOURCE_SUPABASE_SERVICE_ROLE_KEY!
-   );
-   
-   const minioClient = new S3Client({
-     endpoint: process.env.DEST_MINIO_ENDPOINT,
-     region: "us-east-1",
-     credentials: {
-       accessKeyId: process.env.DEST_MINIO_ACCESS_KEY!,
-       secretAccessKey: process.env.DEST_MINIO_SECRET_KEY!,
-     },
-     forcePathStyle: true,
-   });
-   
-   async function migrateFiles() {
-     // Buscar todos os arquivos do banco
-     const allFiles = await db.select().from(files);
-     
-     console.log(`Migrando ${allFiles.length} arquivos...`);
-     
-     for (const file of allFiles) {
-       try {
-         // Download do Supabase Storage
-         const { data: fileData, error: downloadError } = await supabase.storage
-           .from('securdocs-files')
-           .download(file.storagePath);
-         
-         if (downloadError) {
-           console.error(`Erro ao baixar ${file.storagePath}:`, downloadError);
-           continue;
-         }
-         
-         // Converter Blob para Buffer
-         const buffer = Buffer.from(await fileData.arrayBuffer());
-         
-         // Upload para MinIO
-         await minioClient.send(new PutObjectCommand({
-           Bucket: 'securdocs-files',
-           Key: file.storagePath,
-           Body: buffer,
-           ContentType: file.mimeType || 'application/octet-stream',
-         }));
-         
-         console.log(`✓ Migrado: ${file.name}`);
-       } catch (error) {
-         console.error(`Erro ao migrar ${file.name}:`, error);
-       }
-     }
-     
-     console.log('Migração concluída!');
-   }
-   
-   migrateFiles();
-   ```
-
-   Alternativa: Usar `mc` (MinIO Client) com Supabase Storage via S3 API
+2. **Executar migrations do Drizzle**
    ```bash
-   # Nota: Supabase Storage não expõe diretamente API S3 compatível
-   # Use o script Node.js acima ou migre via código
-   ```
-
-3. **Validar migração**
-   ```bash
-   # Comparar contagem de objetos
-   mc ls dest/securdocs-files --recursive | wc -l
+   # Se é uma nova instalação
+   docker compose exec app pnpm db:push
    
-   # Validar alguns arquivos manualmente
-   # Comparar tamanhos e checksums se necessário
+   # Se migrou dados do NeonDB, as tabelas já existem
    ```
 
-### 5.4 Fase 4: Deploy da Aplicação
-
-1. **Build e deploy**
+3. **Verificar conectividade com Nextcloud**
    ```bash
-   # Clonar repositório no servidor
-   git clone https://github.com/seu-org/securdocs.git
-   cd securdocs
-   
-   # Configurar .env com novas URLs
-   cp .env.example .env
-   # Editar .env com DATABASE_URL=self-hosted, MINIO_ENDPOINT=self-hosted
-   # Remover variáveis do Supabase Storage e adicionar variáveis do MinIO
-   
-   # Build e iniciar
-   docker-compose build
-   docker-compose up -d
+   # Testar WebDAV de dentro do container
+   docker compose exec app curl -u securadocs:SUA_APP_PASSWORD \
+     http://nextcloud/remote.php/dav/files/securadocs/
    ```
 
-2. **Executar migrations (se necessário)**
+### 5.6 Fase 6: Validação e Testes
+
+1. **Testes funcionais básicos**
+   - [ ] Acessar SecuraDocs: `https://docs.seu-dominio.com`
+   - [ ] Registrar novo usuário
+   - [ ] Login/logout
+   - [ ] Upload de arquivo
+   - [ ] Download de arquivo
+   - [ ] Criar pasta
+   - [ ] Compartilhar arquivo
+   - [ ] Verificar logs de auditoria
+
+2. **Verificar arquivos no Nextcloud**
+   - Acessar `https://cloud.seu-dominio.com`
+   - Login como `securadocs`
+   - Verificar se arquivos aparecem na pasta `SecuraDocs`
+
+3. **Monitoramento**
    ```bash
-   docker exec -it securdocs-app pnpm drizzle-kit migrate
-   ```
-
-3. **Configurar Nginx e SSL**
-   ```bash
-   # Copiar certificados
-   sudo cp /etc/letsencrypt/live/seu-dominio.com/fullchain.pem nginx/ssl/
-   sudo cp /etc/letsencrypt/live/seu-dominio.com/privkey.pem nginx/ssl/
+   # Ver logs de todos os serviços
+   docker compose logs -f
    
-   # Reiniciar nginx
-   docker-compose restart nginx
+   # Ver logs de um serviço específico
+   docker compose logs -f app
+   docker compose logs -f nextcloud
+   
+   # Monitorar uso de recursos
+   docker stats
    ```
 
-### 5.5 Fase 5: Validação e Cutover
-
-1. **Testes funcionais**
-   - Login/logout
-   - Upload/download de arquivo
-   - Compartilhamento
-   - Verificar logs de auditoria
-
-2. **Atualizar DNS** (se necessário)
-   - Apontar domínio para IP do servidor self-hosted
-
-3. **Monitoramento pós-migração**
-   - Verificar logs: `docker-compose logs -f`
-   - Monitorar uso de recursos: `docker stats`
-   - Validar backups automáticos
+4. **Verificar saúde dos serviços**
+   ```bash
+   # Verificar containers rodando
+   docker compose ps
+   
+   # Verificar conectividade do banco
+   docker compose exec postgres pg_isready -U postgres
+   ```
 
 ---
 
@@ -509,24 +785,28 @@ Criar script `scripts/backup-db.sh`:
 
 ```bash
 #!/bin/bash
-BACKUP_DIR="./backups"
+BACKUP_DIR="./backups/db"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/db_backup_$TIMESTAMP.sql"
 
 mkdir -p $BACKUP_DIR
 
-docker exec securdocs-postgres pg_dump -U securdocs securdocs > $BACKUP_FILE
+# Backup do banco SecuraDocs
+docker exec securdocs-postgres pg_dump -U securdocs securdocs > "$BACKUP_DIR/securdocs_$TIMESTAMP.sql"
+
+# Backup do banco Nextcloud (opcional, recomendado)
+docker exec securdocs-postgres pg_dump -U nextcloud nextcloud > "$BACKUP_DIR/nextcloud_$TIMESTAMP.sql"
 
 # Comprimir
-gzip $BACKUP_FILE
+gzip "$BACKUP_DIR/securdocs_$TIMESTAMP.sql"
+gzip "$BACKUP_DIR/nextcloud_$TIMESTAMP.sql"
 
 # Manter apenas últimos 7 dias
-find $BACKUP_DIR -name "db_backup_*.sql.gz" -mtime +7 -delete
+find $BACKUP_DIR -name "*.sql.gz" -mtime +7 -delete
 
-echo "Backup criado: $BACKUP_FILE.gz"
+echo "Backup de bancos criado em $BACKUP_DIR"
 ```
 
-### 6.2 Backup dos Arquivos (MinIO)
+### 6.2 Backup dos Arquivos (Nextcloud)
 
 Criar script `scripts/backup-files.sh`:
 
@@ -537,20 +817,51 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p $BACKUP_DIR
 
-# Usar mc para fazer backup do MinIO self-hosted
-mc mirror dest/securdocs-files $BACKUP_DIR/files_$TIMESTAMP
+# Parar Nextcloud temporariamente para backup consistente (opcional)
+# docker compose stop nextcloud
 
-# Comprimir
-tar -czf $BACKUP_DIR/files_$TIMESTAMP.tar.gz $BACKUP_DIR/files_$TIMESTAMP
-rm -rf $BACKUP_DIR/files_$TIMESTAMP
+# Backup do volume Nextcloud
+docker run --rm \
+  -v securdocs_nextcloud_data:/source:ro \
+  -v $(pwd)/backups/files:/backup \
+  alpine tar czf /backup/nextcloud_data_$TIMESTAMP.tar.gz -C /source .
+
+# Reiniciar Nextcloud (se parou)
+# docker compose start nextcloud
 
 # Manter apenas últimos 7 dias
-find $BACKUP_DIR -name "files_*.tar.gz" -mtime +7 -delete
+find $BACKUP_DIR -name "nextcloud_data_*.tar.gz" -mtime +7 -delete
 
-echo "Backup de arquivos criado: $BACKUP_DIR/files_$TIMESTAMP.tar.gz"
+echo "Backup de arquivos criado: $BACKUP_DIR/nextcloud_data_$TIMESTAMP.tar.gz"
 ```
 
-**Nota:** Se ainda estiver usando Supabase Storage (antes da migração), use o script Node.js para fazer backup via API do Supabase.
+### 6.3 Restore do Banco de Dados
+
+```bash
+# Restaurar banco SecuraDocs
+gunzip -c backups/db/securdocs_TIMESTAMP.sql.gz | \
+  docker exec -i securdocs-postgres psql -U securdocs -d securdocs
+
+# Restaurar banco Nextcloud (se necessário)
+gunzip -c backups/db/nextcloud_TIMESTAMP.sql.gz | \
+  docker exec -i securdocs-postgres psql -U nextcloud -d nextcloud
+```
+
+### 6.4 Restore dos Arquivos
+
+```bash
+# Parar Nextcloud
+docker compose stop nextcloud
+
+# Restaurar volume
+docker run --rm \
+  -v securdocs_nextcloud_data:/target \
+  -v $(pwd)/backups/files:/backup \
+  alpine sh -c "rm -rf /target/* && tar xzf /backup/nextcloud_data_TIMESTAMP.tar.gz -C /target"
+
+# Reiniciar Nextcloud
+docker compose start nextcloud
+```
 
 ### 6.3 Automatizar Backups
 
@@ -612,13 +923,13 @@ docker-compose logs postgres
 sudo chown -R 999:999 data/postgres
 ```
 
-**MinIO não acessível:**
+**Nextcloud não acessível:**
 ```bash
 # Verificar logs
-docker-compose logs minio
+docker-compose logs nextcloud
 
-# Verificar se bucket existe
-mc ls dest/
+# Verificar se o serviço está rodando
+docker-compose ps nextcloud
 ```
 
 **Aplicação não conecta ao banco:**
@@ -643,27 +954,47 @@ docker stats
 
 ---
 
-## 9. Checklist de Migração
+## 9. Checklist de Deploy
 
+### 9.1 Preparação
 - [ ] Servidor provisionado com Docker instalado
-- [ ] Domínio configurado e SSL obtido
-- [ ] Estrutura de diretórios criada
-- [ ] Arquivos de configuração copiados (docker-compose.yml, Dockerfile, nginx.conf)
+- [ ] Domínio(s) configurado(s) (docs.dominio.com, cloud.dominio.com)
+- [ ] Certificados SSL obtidos (Let's Encrypt)
+- [ ] Repositório clonado no servidor
+- [ ] Arquivos de configuração criados (.env, init-db.sql, nginx.conf)
+
+### 9.2 Infraestrutura
+- [ ] PostgreSQL iniciado e saudável
+- [ ] Nextcloud iniciado e acessível
+- [ ] Usuário técnico `securadocs` criado no Nextcloud
+- [ ] App password gerado e configurado no .env
+- [ ] Diretório `SecuraDocs` criado no Nextcloud
+
+### 9.3 Aplicação
+- [ ] SecuraDocs buildado e iniciado
+- [ ] Migrations do Drizzle executadas
+- [ ] Conectividade com Nextcloud WebDAV testada
+- [ ] Nginx configurado com SSL
+
+### 9.4 Migração (se aplicável)
 - [ ] Backup do NeonDB realizado
-- [ ] PostgreSQL self-hosted iniciado e saudável
-- [ ] Dump do NeonDB restaurado no PostgreSQL self-hosted
-- [ ] Dados validados (contagem de registros)
-- [ ] MinIO self-hosted iniciado e bucket criado
-- [ ] Arquivos migrados do Supabase Storage para MinIO self-hosted
-- [ ] Arquivos validados (contagem de objetos)
-- [ ] Aplicação buildada e deployada
-- [ ] Migrations executadas (se necessário)
-- [ ] Nginx configurado e SSL funcionando
-- [ ] Testes funcionais realizados
-- [ ] DNS atualizado (se necessário)
+- [ ] Dump restaurado no PostgreSQL self-hosted
+- [ ] Arquivos migrados do Supabase Storage para Nextcloud
+- [ ] Dados validados (contagem de registros e arquivos)
+
+### 9.5 Validação
+- [ ] Login/registro funcionando
+- [ ] Upload de arquivo funcionando
+- [ ] Download de arquivo funcionando
+- [ ] Arquivos visíveis no Nextcloud
+- [ ] Compartilhamento funcionando
+- [ ] Logs de auditoria funcionando
+
+### 9.6 Produção
+- [ ] DNS atualizado para apontar aos novos IPs
 - [ ] Backups automatizados configurados
 - [ ] Monitoramento configurado
-- [ ] Documentação atualizada com novas URLs/credenciais
+- [ ] Documentação interna atualizada
 
 ---
 
@@ -682,7 +1013,14 @@ docker stats
 - [Docker Documentation](https://docs.docker.com/)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [PostgreSQL Docker Image](https://hub.docker.com/_/postgres)
-- [MinIO Docker Image](https://hub.docker.com/r/minio/minio)
+- [Nextcloud Docker Image](https://hub.docker.com/_/nextcloud)
+- [Nextcloud Admin Manual](https://docs.nextcloud.com/server/stable/admin_manual/)
+- [Nextcloud WebDAV API](https://docs.nextcloud.com/server/stable/developer_manual/client_apis/WebDAV/)
 - [Nginx Documentation](https://nginx.org/en/docs/)
 - [Let's Encrypt / Certbot](https://certbot.eff.org/)
+
+### Recursos Adicionais
+
+- [Nextcloud All-in-One (AIO)](https://github.com/nextcloud/all-in-one) - Alternativa simplificada
+- [webdav npm package](https://www.npmjs.com/package/webdav) - Cliente WebDAV para Node.js
 

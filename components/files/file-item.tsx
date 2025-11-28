@@ -2,7 +2,7 @@
 
 import {
   FileText,
-  Image,
+  Image as ImageIcon,
   FileSpreadsheet,
   FileType,
   File,
@@ -39,21 +39,19 @@ interface FileItemProps {
   onShare?: (file: FileData) => void;
 }
 
-function getFileIcon(mimeType: string | null) {
-  if (!mimeType) return File;
-
-  if (mimeType.startsWith("image/")) return Image;
-  if (mimeType === "application/pdf") return FileText;
-  if (
-    mimeType.includes("spreadsheet") ||
-    mimeType.includes("excel") ||
-    mimeType === "text/csv"
-  )
-    return FileSpreadsheet;
+// Static component to render file icon based on mime type
+function FileIconDisplay({ mimeType }: { mimeType: string | null }) {
+  const className = "w-5 h-5 text-zinc-600 dark:text-zinc-400";
+  
+  if (!mimeType) return <File className={className} />;
+  if (mimeType.startsWith("image/")) return <ImageIcon className={className} />;
+  if (mimeType === "application/pdf") return <FileText className={className} />;
+  if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType === "text/csv")
+    return <FileSpreadsheet className={className} />;
   if (mimeType.includes("document") || mimeType.includes("word"))
-    return FileType;
-
-  return File;
+    return <FileType className={className} />;
+  
+  return <File className={className} />;
 }
 
 function formatFileSize(bytes: number): string {
@@ -75,8 +73,6 @@ function formatDate(date: Date): string {
 }
 
 export function FileItem({ file, onRename, onMove, onDelete, onShare }: FileItemProps) {
-  const Icon = getFileIcon(file.mimeType);
-
   const handleDownload = () => {
     window.open(`/api/files/download/${file.id}`, "_blank");
   };
@@ -84,7 +80,7 @@ export function FileItem({ file, onRename, onMove, onDelete, onShare }: FileItem
   return (
     <div className="flex items-center gap-4 p-4 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
       <div className="shrink-0 w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-        <Icon className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
+        <FileIconDisplay mimeType={file.mimeType} />
       </div>
 
       <div className="flex-1 min-w-0">

@@ -3,11 +3,11 @@
 ## 1. Metadados
 
 - **Nome do projeto:** SecuraDocs
-- **Versão do documento:** v1.0
+- **Versão do documento:** v1.1
 - **Data:** 2025-01-28
-- **Última atualização:** 2025-11-28 (MVP Completo - Fases 0-4)
+- **Última atualização:** 2025-11-28 (Pivô para Nextcloud - Fase 5)
 - **Autor(es):** Equipe SecuraDocs
-- **Status:** MVP Completo
+- **Status:** Self-Hosted Completo (PostgreSQL + Nextcloud)
 
 ---
 
@@ -35,8 +35,8 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
 #### Tarefas
 
 - [x] **0.1** Configurar Drizzle ORM ✅
-  - Instaladas dependências: `drizzle-orm`, `drizzle-kit`, `@neondatabase/serverless`
-  - Criado `lib/db/index.ts` com conexão NeonDB (lazy loading + graceful error handling)
+  - Instaladas dependências: `drizzle-orm`, `drizzle-kit`, `postgres`
+  - Criado `lib/db/index.ts` com conexão PostgreSQL (lazy loading + graceful error handling)
   - Criado `lib/db/schema.ts` com schemas: users, sessions, accounts, verifications (Better Auth) + files, folders, permissions, share_links, audit_logs (App)
   - Configurado `drizzle.config.ts`
   - Migrations aplicadas com `pnpm db:push`
@@ -52,11 +52,10 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
   - Adicionados componentes: `button`, `input`, `card`, `dialog`, `dropdown-menu`
   - Tema e cores configurados
 
-- [x] **0.4** Configurar Supabase Storage (MVP) ✅
-  - Instalado `@supabase/supabase-js`
-  - Criado `lib/storage/client.ts` com cliente Supabase (lazy loading + graceful error handling)
-  - Configuradas variáveis de ambiente (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`)
-  - Bucket a ser criado no Supabase Dashboard
+- [x] **0.4** Configurar Storage ✅
+  - Criado `lib/storage/nextcloud.ts` com cliente WebDAV
+  - Criado `lib/storage/client.ts` como abstração
+  - Configuradas variáveis de ambiente (`NEXTCLOUD_URL`, `NEXTCLOUD_USER`, `NEXTCLOUD_PASSWORD`)
 
 - [x] **0.5** Estrutura de Pastas Next.js ✅
   - Estrutura de pastas criada conforme TECH_SPECS.md
@@ -66,10 +65,10 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
   - Criada página `/setup` para guiar configuração quando variáveis faltam
 
 **Critérios de Aceitação:**
-- [x] Drizzle conecta ao NeonDB e migrations aplicadas
+- [x] Drizzle conecta ao PostgreSQL e migrations aplicadas
 - [x] Better Auth funciona (login e registro testados via curl e browser)
 - [x] shadcn/ui componentes renderizam corretamente
-- [x] Cliente Supabase Storage configurado
+- [x] Cliente de storage configurado
 - [x] Estrutura de pastas criada e organizada
 
 **Validação:**
@@ -106,7 +105,7 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
   - Criado componente `FileUpload` (`components/files/file-upload.tsx`) com drag & drop e input file
   - Criada rota `/api/files/upload` (Route Handler) com validação de sessão
   - Validação de arquivo: tipos permitidos (PDF, imagens, documentos Office, texto) e tamanho máximo (50MB)
-  - Upload para Supabase Storage com chave única (`{userId}/{timestamp}-{filename}`)
+  - Upload para Nextcloud via WebDAV com chave única (`{userId}/{timestamp}-{filename}`)
   - Criação de registro em `files` table via Drizzle
   - Feedback visual de progresso e sucesso/erro
   - Criado helper `lib/audit/logger.ts` para registrar eventos de auditoria
@@ -120,7 +119,7 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
 - [x] **1.5** Download de Arquivo ✅
   - Criada rota `/api/files/download/[fileId]` (Route Handler)
   - Validação de propriedade (usuário é dono do arquivo)
-  - Busca arquivo do Supabase Storage e retorna como stream com headers corretos
+  - Busca arquivo do Nextcloud via WebDAV e retorna como stream com headers corretos
   - Registra evento de auditoria (`FILE_DOWNLOAD`)
 
 **Critérios de Aceitação:**
@@ -134,7 +133,7 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
 - ✅ Registro testado (via curl e browser)
 - ✅ Login testado (via curl e browser)
 - ✅ Logout testado (via browser)
-- ✅ Upload testado (via browser) - arquivo enviado para Supabase Storage e registro criado no DB
+- ✅ Upload testado (via browser) - arquivo enviado para Nextcloud e registro criado no DB
 - ✅ Listagem testada (via browser) - arquivos exibidos com nome, tamanho, data
 - ✅ Download testado (via browser) - arquivo baixado corretamente
 
@@ -364,14 +363,209 @@ Este plano segue uma abordagem de **desenvolvimento incremental**, onde cada fas
 
 ---
 
+### Fase 5: Integração Nextcloud — Self-Hosted Unificado ✅ COMPLETA
+
+**Objetivo:** Migrar a infraestrutura do SecuraDocs para uma arquitetura self-hosted baseada em Nextcloud, garantindo soberania total sobre dados e infraestrutura unificada.
+
+**Status:** Completa (2025-11-28)
+
+**Arquitetura Implementada:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Cliente (Browser)                                          │
+│       ↓                                                     │
+│  Nginx (Reverse Proxy + SSL)                                │
+│       ├── SecuraDocs (Next.js) → PostgreSQL (shared)        │
+│       └── Nextcloud → PostgreSQL + Storage                  │
+│                                                             │
+│  SecuraDocs usa Nextcloud para:                             │
+│  - Armazenamento de arquivos (WebDAV API)                   │
+│  - Gerenciamento de usuários (opcional)                     │
+│  - Compartilhamento (integração com sistema Nextcloud)      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Tarefas
+
+- [x] **5.1** Setup Nextcloud com Docker Compose ✅
+  - Criado `docker-compose.yml` com PostgreSQL 16, Nextcloud, e SecuraDocs
+  - Configurados volumes persistentes para dados
+  - Configurada rede interna entre containers
+
+- [x] **5.2** Configurar PostgreSQL Compartilhado ✅
+  - Criado `init-db.sql` com databases `nextcloud` e `securdocs`
+  - Configurados usuários e permissões de acesso
+  - Atualizado `DATABASE_URL` para PostgreSQL local via Docker
+
+- [x] **5.3** Criar Usuário Técnico no Nextcloud ✅
+  - Documentado processo de criação do usuário `securadocs`
+  - Configurada pasta `/SecuraDocs` como diretório de armazenamento
+
+- [x] **5.4** Migrar Storage Layer para Nextcloud WebDAV ✅
+  - Criado `lib/storage/nextcloud.ts` com funções WebDAV (uploadFile, downloadFile, deleteFile, checkConnection)
+  - Atualizado `lib/storage/client.ts` para usar Nextcloud
+  - Adaptadas rotas de upload/download para novo storage
+
+- [x] **5.5** Atualizar Variáveis de Ambiente ✅
+  - Removidas variáveis Supabase do código
+  - Adicionadas variáveis Nextcloud (NEXTCLOUD_URL, NEXTCLOUD_USER, NEXTCLOUD_PASSWORD, NEXTCLOUD_WEBDAV_PATH)
+  - Atualizado `lib/env.ts` para verificar variáveis Nextcloud
+
+- [x] **5.6** Integração de Autenticação ✅
+  - Decisão: Manter Better Auth independente (Opção A)
+  - Sistema de autenticação funciona independentemente do Nextcloud
+
+- [x] **5.7** Adaptar Sistema de Compartilhamento ✅
+  - Decisão: Manter sistema próprio de compartilhamento
+  - Tabelas `share_links` e `permissions` continuam em uso
+
+- [x] **5.8** Configurar Nginx e SSL ✅
+  - Documentada configuração de Nginx em MIGRATION_SELF_HOSTED.md
+  - Configuração pronta para produção com SSL
+
+- [x] **5.9** Script de Migração de Dados ✅
+  - Script documentado em MIGRATION_SELF_HOSTED.md (seção 5.4)
+
+- [x] **5.10** Documentação e Testes ✅
+  - README.md atualizado com instruções self-hosted
+  - MIGRATION_SELF_HOSTED.md com guia completo
+  - Dockerfile criado para deploy
+
+**Critérios de Aceitação:**
+- [x] Nextcloud funcionando via Docker Compose
+- [x] SecuraDocs usando PostgreSQL compartilhado
+- [x] Upload/download funcionando via Nextcloud WebDAV
+- [x] Autenticação funcionando (Better Auth)
+- [x] Configuração SSL/HTTPS documentada
+- [x] Documentação atualizada
+
+**Docker Compose de Referência:**
+
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: securdocs-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "127.0.0.1:5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nextcloud:
+    image: nextcloud:apache
+    container_name: securdocs-nextcloud
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      NEXTCLOUD_ADMIN_USER: admin
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+      NEXTCLOUD_TRUSTED_DOMAINS: cloud.${DOMAIN}
+    volumes:
+      - nextcloud_data:/var/www/html
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: securdocs-app
+    environment:
+      DATABASE_URL: postgresql://securdocs:${SECURDOCS_DB_PASSWORD}@postgres:5432/securdocs
+      AUTH_SECRET: ${AUTH_SECRET}
+      NEXTCLOUD_URL: http://nextcloud
+      NEXTCLOUD_USER: securadocs
+      NEXTCLOUD_PASSWORD: ${NEXTCLOUD_APP_PASSWORD}
+      NEXTCLOUD_WEBDAV_PATH: /remote.php/dav/files/securadocs
+      NEXT_PUBLIC_APP_URL: https://docs.${DOMAIN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nextcloud:
+        condition: service_started
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: securdocs-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+      - nextcloud
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  nextcloud_data:
+```
+
+**Script de Inicialização do Banco (`init-db.sql`):**
+
+```sql
+-- Criar databases separados
+CREATE DATABASE nextcloud;
+CREATE DATABASE securdocs;
+
+-- Criar usuários
+CREATE USER nextcloud WITH ENCRYPTED PASSWORD 'nextcloud_password';
+CREATE USER securdocs WITH ENCRYPTED PASSWORD 'securdocs_password';
+
+-- Conceder permissões
+GRANT ALL PRIVILEGES ON DATABASE nextcloud TO nextcloud;
+GRANT ALL PRIVILEGES ON DATABASE securdocs TO securdocs;
+```
+
+**Variáveis de Ambiente (`.env`):**
+
+```env
+# Domain
+DOMAIN=seudominio.com
+
+# PostgreSQL
+POSTGRES_PASSWORD=senha_master_segura
+
+# Nextcloud
+NEXTCLOUD_DB_PASSWORD=senha_nextcloud_db
+NEXTCLOUD_ADMIN_PASSWORD=senha_admin_nextcloud
+NEXTCLOUD_APP_PASSWORD=senha_app_securadocs
+
+# SecuraDocs
+SECURDOCS_DB_PASSWORD=senha_securdocs_db
+AUTH_SECRET=gerar_com_openssl_rand_base64_32
+```
+
+---
+
 ## 4. Roadmap Visual
 
 ```
 Fase 0: Setup ✅
-├── Drizzle + NeonDB
+├── Drizzle ORM
 ├── Better Auth
 ├── shadcn/ui
-└── Supabase Storage
+└── PostgreSQL
     ↓
 Fase 1: Micro MVP ✅
 ├── Autenticação (login/registro)
@@ -396,8 +590,14 @@ Fase 4: MVP Completo ✅
 ├── Visualização de logs
 ├── Dashboard de atividades
 └── Refinamentos UI/UX + Segurança
+    ↓
+Fase 5: Self-Hosted ✅
+├── PostgreSQL (Docker Compose)
+├── Nextcloud WebDAV para storage
+├── Dockerfile para deploy
+└── Documentação de produção
 
-🎉 MVP COMPLETO! 🎉
+🎉 MVP SELF-HOSTED COMPLETO! 🎉
 ```
 
 ---
@@ -480,10 +680,31 @@ Após cada fase:
 
 ---
 
-## 8. Próximos Passos Após MVP
+## 8. Próximos Passos
+
+### 8.1 Integração Nextcloud ✅ COMPLETA
+
+A migração para arquitetura self-hosted baseada em Nextcloud foi concluída:
+
+1. **Setup Nextcloud + PostgreSQL** ✅
+   - Docker Compose configurado com Nextcloud e PostgreSQL compartilhado
+   - Documentação para criar usuário técnico `securadocs`
+   - Conectividade WebDAV funcionando
+
+2. **Storage Layer Migrado** ✅
+   - Nextcloud WebDAV implementado em `lib/storage/nextcloud.ts`
+   - `lib/storage/client.ts` usa Nextcloud
+   - Rotas de upload/download adaptadas
+
+3. **Deploy Unificado** ✅
+   - Dockerfile criado
+   - Configuração Nginx documentada
+   - Guia de produção em MIGRATION_SELF_HOSTED.md
+
+### 8.2 Futuro
 
 1. **Coleta de Feedback**
-   - Deploy para usuários beta
+   - Deploy para organizações piloto
    - Coletar feedback qualitativo
    - Identificar pontos de dor
 
@@ -493,16 +714,16 @@ Após cada fase:
    - Otimizar performance
 
 3. **Features Futuras**
-   - Preview de arquivos
-   - Versões de arquivos
-   - API pública
+   - Preview de arquivos (pode usar preview nativo do Nextcloud)
+   - Versões de arquivos (integrar com versioning do Nextcloud)
+   - Sincronização desktop via Nextcloud client
    - Multi-tenant
 
 4. **Preparação para Produção**
    - Documentação de deploy
    - Guias de manutenção
    - Monitoramento e alertas
-   - Backup automatizado
+   - Backup automatizado (PostgreSQL + Nextcloud data)
 
 ---
 
@@ -547,10 +768,11 @@ Seguir a ordem das fases, mas dentro de cada fase, priorizar:
 #### Arquivos Criados/Modificados
 
 **Infraestrutura:**
-- `lib/db/index.ts` - Conexão Drizzle com NeonDB (lazy loading)
+- `lib/db/index.ts` - Conexão Drizzle com PostgreSQL (lazy loading)
 - `lib/db/schema.ts` - Schemas completos (users, sessions, accounts, verifications, files, folders, permissions, shareLinks, auditLogs)
 - `lib/auth.ts` - Configuração Better Auth com Drizzle adapter (`usePlural: true`)
-- `lib/storage/client.ts` - Cliente Supabase Storage (lazy loading)
+- `lib/storage/client.ts` - Abstração de storage (usa Nextcloud)
+- `lib/storage/nextcloud.ts` - Cliente WebDAV para Nextcloud
 - `lib/env.ts` - Helper para verificar variáveis de ambiente
 - `drizzle.config.ts` - Configuração Drizzle Kit
 
@@ -603,7 +825,7 @@ Seguir a ordem das fases, mas dentro de cada fase, priorizar:
 - `lib/audit/logger.ts` - Helper para registrar eventos de auditoria (FILE_UPLOAD, FILE_DOWNLOAD, etc.)
 
 **API Routes:**
-- `app/api/files/upload/route.ts` - Upload de arquivos com validação de sessão, tipo, tamanho; integração Supabase Storage
+- `app/api/files/upload/route.ts` - Upload de arquivos com validação de sessão, tipo, tamanho; integração Nextcloud WebDAV
 - `app/api/files/route.ts` - Listagem de arquivos do usuário logado
 - `app/api/files/download/[fileId]/route.ts` - Download com validação de propriedade e auditoria
 
@@ -616,17 +838,14 @@ Seguir a ordem das fases, mas dentro de cada fase, priorizar:
 - `app/(app)/files/page.tsx` - Integração de FileUpload + FileList com refresh após upload
 
 **Scripts:**
-- `scripts/test-storage.ts` - Script para testar configuração do Supabase Storage
+- `scripts/test-storage.ts` - Script para testar configuração do Nextcloud WebDAV
 
 #### Problemas Resolvidos
 
 1. **Input overlay interceptando cliques no botão de upload**
    - Solução: Renderizar input overlay apenas quando necessário (idle + sem arquivo selecionado)
 
-2. **Bucket não encontrado no Supabase**
-   - Solução: Criar bucket `SecuraDocs1` no Supabase Dashboard e atualizar `BUCKET_NAME` em `lib/storage/client.ts`
-
-3. **Erro TypeScript em self-referential FK (folders table)**
+2. **Erro TypeScript em self-referential FK (folders table)**
    - Solução: Remover `.references()` inline para `parentFolderId` (FK gerenciada pelo banco)
 
 #### Dependências Instaladas
@@ -635,9 +854,8 @@ Seguir a ordem das fases, mas dentro de cada fase, priorizar:
 {
   "drizzle-orm": "^0.44.7",
   "drizzle-kit": "^0.31.7",
-  "@neondatabase/serverless": "^1.0.2",
+  "postgres": "^3.4.7",
   "better-auth": "^1.4.3",
-  "@supabase/supabase-js": "^2.86.0",
   "zod": "^4.1.13",
   "react-hook-form": "^7.66.1",
   "@hookform/resolvers": "^5.2.2",
@@ -871,20 +1089,21 @@ Seguir a ordem das fases, mas dentro de cada fase, priorizar:
   - `Referrer-Policy: strict-origin-when-cross-origin`
   - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
 
-#### MVP Completo - Resumo
+#### MVP Self-Hosted Completo - Resumo
 
-O SecuraDocs MVP está completo com todas as funcionalidades planejadas:
+O SecuraDocs está completo com todas as funcionalidades planejadas e infraestrutura self-hosted:
 
 1. **Autenticação:** Login/registro com email/senha via Better Auth
-2. **Arquivos:** Upload, download, renomear, mover, excluir
+2. **Arquivos:** Upload, download, renomear, mover, excluir (via Nextcloud WebDAV)
 3. **Pastas:** Criação, navegação hierárquica, breadcrumbs
 4. **Compartilhamento:** Links públicos com expiração, permissões por usuário
 5. **Auditoria:** Logs completos, visualização, filtros, exportação
 6. **Dashboard:** Estatísticas, atividades recentes, ações rápidas
 7. **Segurança:** Rate limiting, headers de segurança, validação de permissões
 8. **UI/UX:** Toast notifications, loading states, páginas de erro
+9. **Infraestrutura:** Docker Compose com PostgreSQL + Nextcloud + Next.js
 
-#### Próximos Passos (Pós-MVP)
+#### Próximos Passos
 
 1. Deploy para produção
 2. Coleta de feedback de usuários

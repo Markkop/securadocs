@@ -3,10 +3,11 @@
 ## 1. Metadados
 
 - **Nome do projeto:** SecuraDocs
-- **Versão do documento:** v0.1
+- **Versão do documento:** v0.2
 - **Data:** 2025-01-10
+- **Última atualização:** 2025-11-28 (Pivô para Nextcloud)
 - **Autor(es):** Equipe SecuraDocs
-- **Status:** Aprovado
+- **Status:** Aprovado (em transição para Nextcloud)
 
 ---
 
@@ -16,11 +17,11 @@
 
 - Front-end & back-end unificados em **Next.js 16 (App Router)** com React 19 e TypeScript.
 - UI com **Tailwind CSS 4** e componentes via **shadcn/ui** para acessibilidade e customização.
-- Persistência em **PostgreSQL** via **NeonDB** (MVP: serverless; futuro: self-hosted) com **Drizzle ORM** para type-safety.
-- Autenticação com **Better Auth** (FOSS, flexível) integrado com Drizzle adapter.
-- Armazenamento de arquivos em **Supabase Storage** (MVP: managed; futuro: MinIO self-hosted) para soberania de dados.
+- Persistência em **PostgreSQL** compartilhado com Nextcloud (self-hosted via Docker) com **Drizzle ORM** para type-safety.
+- Autenticação com **Better Auth** (FOSS, flexível) integrado com Drizzle adapter, com possibilidade de integração futura com Nextcloud.
+- Armazenamento de arquivos via **Nextcloud WebDAV API** (self-hosted) para soberania total de dados.
 
-> **Obs.:** Esta stack foi escolhida para balancear produtividade, segurança, soberania e facilidade de migração para infraestrutura própria.
+> **Obs.:** Esta stack foi escolhida para balancear produtividade, segurança e **soberania completa** de dados via Nextcloud self-hosted.
 
 ---
 
@@ -29,55 +30,86 @@
 ### 3.1 Diagrama (texto)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Cliente (Browser)                        │
-│  Next.js App (React 19) + Tailwind CSS + shadcn/ui         │
-└──────────────────────┬──────────────────────────────────────┘
-                        │ HTTPS
-                        │
-┌──────────────────────▼──────────────────────────────────────┐
-│              Servidor de Aplicação (Next.js)                │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  Route Handlers (/api/*)                             │  │
-│  │  Server Actions                                       │  │
-│  │  Server Components                                    │  │
-│  └──────────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  Better Auth (Autenticação & Autorização)           │  │
-│  └──────────────────────────────────────────────────────┘  │
-└───────┬──────────────────────────────┬──────────────────────┘
-        │                              │
-        │                              │
-┌───────▼──────────┐      ┌────────────▼──────────────┐
-│   PostgreSQL     │      │   Supabase Storage         │
-│   (NeonDB)       │      │   (MVP: managed)           │
-│                  │      │   (Futuro: MinIO)          │
-│  - Users         │      │                            │
-│  - Files         │      │  - Arquivos binários       │
-│  - Folders       │      │  - Metadados de storage    │
-│  - Permissions   │      │                            │
-│  - Audit Logs    │      │                            │
-│  - Share Links   │      │                            │
-└──────────────────┘      └────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Cliente (Browser)                                │
+│             Next.js App (React 19) + Tailwind CSS + shadcn/ui           │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                  │ HTTPS
+                                  │
+┌────────────────────────────────▼────────────────────────────────────────┐
+│                    Nginx (Reverse Proxy + SSL)                          │
+│  ┌─────────────────────────┐    ┌─────────────────────────────────┐    │
+│  │ docs.dominio.com        │    │ cloud.dominio.com               │    │
+│  │ → SecuraDocs (3000)     │    │ → Nextcloud (80)                │    │
+│  └─────────────────────────┘    └─────────────────────────────────┘    │
+└────────────┬────────────────────────────────────┬───────────────────────┘
+             │                                    │
+┌────────────▼────────────────┐    ┌──────────────▼──────────────────────┐
+│  SecuraDocs (Next.js)       │    │  Nextcloud                          │
+│  ┌────────────────────────┐ │    │  ┌────────────────────────────────┐ │
+│  │ Route Handlers (/api/*) │ │    │  │ WebDAV API                     │ │
+│  │ Server Actions          │ │    │  │ /remote.php/dav/files/user     │ │
+│  │ Server Components       │ │    │  │                                │ │
+│  └────────────────────────┘ │    │  │ User Management (opcional)     │ │
+│  ┌────────────────────────┐ │    │  │ Sharing (opcional)             │ │
+│  │ Better Auth            │ │    │  └────────────────────────────────┘ │
+│  └────────────────────────┘ │    │                                     │
+└────────────┬────────────────┘    └─────────────────┬───────────────────┘
+             │                                        │
+             │         WebDAV (upload/download)       │
+             │◄──────────────────────────────────────►│
+             │                                        │
+             │    ┌───────────────────────────────────┘
+             │    │
+┌────────────▼────▼───────────────────────────────────────────────────────┐
+│                    PostgreSQL (Compartilhado)                           │
+│  ┌─────────────────────────────┐  ┌─────────────────────────────────┐  │
+│  │  Database: securdocs        │  │  Database: nextcloud            │  │
+│  │  - users                    │  │  - oc_users                     │  │
+│  │  - files (metadados)        │  │  - oc_filecache                 │  │
+│  │  - folders                  │  │  - oc_share                     │  │
+│  │  - permissions              │  │  - ...                          │  │
+│  │  - audit_logs               │  │                                 │  │
+│  │  - share_links              │  │                                 │  │
+│  └─────────────────────────────┘  └─────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  │ Volume persistente
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    Nextcloud Data (Storage)                             │
+│  /var/www/html/data/securadocs/files/                                   │
+│  - Arquivos binários organizados por usuário                            │
+│  - Gerenciado pelo Nextcloud                                            │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
+
 
 ### 3.2 Fronteiras / Bounded Contexts
 
 - **Contexto Autenticação & Usuários**
   - Gerenciamento de usuários, sessões, perfis.
-  - Integração com Better Auth.
+  - Integração com Better Auth (primário).
+  - Possibilidade de sincronização com Nextcloud users (futuro).
 
 - **Contexto Arquivos & Pastas**
   - Upload, download, organização hierárquica.
-  - Integração com Supabase Storage (MVP) ou MinIO (self-hosted) para storage.
+  - Integração com **Nextcloud WebDAV** para armazenamento de arquivos.
+  - Metadados armazenados no PostgreSQL (database `securdocs`).
 
 - **Contexto Permissões & Compartilhamento**
-  - Controle de acesso granular.
+  - Controle de acesso granular via sistema próprio.
   - Links de compartilhamento e tokens.
+  - Possibilidade de integração com Nextcloud Share API (futuro).
 
 - **Contexto Auditoria**
   - Logs de eventos e ações.
   - Exportação e visualização de logs.
+
+- **Contexto Nextcloud (Novo)**
+  - Gerenciamento de armazenamento físico dos arquivos.
+  - WebDAV API para operações de arquivo.
+  - Interface web separada para acesso direto aos arquivos (opcional).
 
 ---
 
@@ -109,12 +141,16 @@
 
 ### 4.4 Banco de Dados
 
-- **Motor:** PostgreSQL
-- **Provedor MVP:** NeonDB (`@neondatabase/serverless`)
+- **Motor:** PostgreSQL 16
+- **Provedor:** PostgreSQL self-hosted (Docker container compartilhado com Nextcloud)
 - **ORM/Query builder:** Drizzle ORM (`drizzle-orm`)
 - **Migrations:** Drizzle Kit (`drizzle-kit`)
-- **Driver:** `@neondatabase/serverless` (HTTP-based, serverless-friendly)
-- **Possível migração futura:** instância self-hosted Postgres (ver MIGRATION_SELF_HOSTED.md)
+- **Driver:** `pg` ou `postgres` (driver nativo para PostgreSQL self-hosted)
+- **Configuração:**
+  - Database `securdocs` para tabelas do SecuraDocs
+  - Database `nextcloud` para tabelas do Nextcloud (gerenciado automaticamente)
+  - Usuários separados com permissões isoladas
+
 
 ### 4.5 Autenticação & Autorização
 
@@ -128,32 +164,65 @@
 
 ### 4.6 Armazenamento de Arquivos
 
-- **Storage MVP:** Supabase Storage (managed, similar ao NeonDB para banco)
-- **Storage Produção (self-hosted):** MinIO (S3-compatível)
-- **SDK MVP:** `@supabase/supabase-js` (cliente Supabase)
-- **SDK Produção:** `@aws-sdk/client-s3` ou `minio` (cliente MinIO nativo)
-- **Configuração MVP:** Supabase Storage (cloud managed, fácil setup)
-- **Estrutura de buckets:** Um bucket principal (`securdocs-files`) com organização por prefixos (usuário/organização).
+- **Storage:** Nextcloud (self-hosted via Docker)
+- **Protocolo de acesso:** WebDAV (padrão aberto, amplamente suportado)
+- **SDK:** `webdav` (npm package) ou fetch nativo com headers WebDAV
+- **Endpoint WebDAV:** `{NEXTCLOUD_URL}/remote.php/dav/files/{username}`
+- **Usuário técnico:** `securadocs` (criado no Nextcloud para uso exclusivo do app)
+- **Estrutura de diretórios:**
+  ```
+  /SecuraDocs/
+  ├── {userId}/
+  │   ├── {timestamp}-{filename}
+  │   └── ...
+  ```
+
+**Vantagens do Nextcloud:**
+- Interface web para administração e acesso direto aos arquivos
+- Versionamento de arquivos built-in
+- Preview de arquivos (imagens, PDFs, documentos)
+- Aplicativos mobile e desktop para sincronização
+- Sistema de compartilhamento nativo (pode ser integrado futuramente)
+- WebDAV é um protocolo padrão aberto, amplamente suportado
+
 
 ### 4.7 Infraestrutura & Deploy
 
-- **Ambiente de deploy MVP:** Vercel (Next.js) + NeonDB + Supabase Storage
-- **Ambiente de deploy produção:** Docker Compose (self-hosted) ou VPS com PostgreSQL + MinIO
+- **Ambiente de deploy:** Docker Compose (self-hosted) com PostgreSQL + Nextcloud + Next.js
+- **Componentes Docker:**
+  - `postgres:16-alpine` - Banco de dados compartilhado
+  - `nextcloud:apache` - Armazenamento de arquivos + interface web
+  - `securdocs-app` - Aplicação Next.js (build customizado)
+  - `nginx:alpine` - Reverse proxy com SSL
 - **Configuração de build:**  
   - `pnpm install` (gerenciador de pacotes)
   - `pnpm run build` (Next.js build)
-- **Variáveis de ambiente principais (MVP):**
-  - `DATABASE_URL=` (NeonDB connection string)
-  - `AUTH_SECRET=` (secret para assinatura de cookies/tokens)
-  - `NEXT_PUBLIC_SUPABASE_URL=` (Supabase project URL)
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY=` (Supabase anon/public key)
-  - `SUPABASE_SERVICE_ROLE_KEY=` (Supabase service role key, server-side only)
-  - `NEXT_PUBLIC_APP_URL=` (URL base da aplicação)
-- **Variáveis de ambiente produção (self-hosted):**
-  - `MINIO_ENDPOINT=` (endpoint do MinIO/S3)
-  - `MINIO_ACCESS_KEY=`
-  - `MINIO_SECRET_KEY=`
-  - `MINIO_BUCKET_NAME=securdocs-files`
+  - `docker compose build` (build de todos os containers)
+
+**Variáveis de ambiente (Nextcloud Integration):**
+
+```env
+# Domain
+DOMAIN=seudominio.com
+
+# PostgreSQL (compartilhado)
+DATABASE_URL=postgresql://securdocs:${SECURDOCS_DB_PASSWORD}@postgres:5432/securdocs
+POSTGRES_PASSWORD=senha_master_segura
+SECURDOCS_DB_PASSWORD=senha_securdocs_db
+
+# Nextcloud
+NEXTCLOUD_URL=http://nextcloud
+NEXTCLOUD_USER=securadocs
+NEXTCLOUD_PASSWORD=app_password_gerado_no_nextcloud
+NEXTCLOUD_WEBDAV_PATH=/remote.php/dav/files/securadocs
+NEXTCLOUD_DB_PASSWORD=senha_nextcloud_db
+NEXTCLOUD_ADMIN_PASSWORD=senha_admin_nextcloud
+
+# SecuraDocs App
+AUTH_SECRET=gerar_com_openssl_rand_base64_32
+NEXT_PUBLIC_APP_URL=https://docs.${DOMAIN}
+```
+
 
 ---
 
@@ -221,8 +290,8 @@ src/
       schema.ts            # Schemas Drizzle
       migrations/          # Migrations geradas
     storage/
-      client.ts            # Cliente MinIO/S3
-      upload.ts            # Lógica de upload
+      client.ts            # Abstração de storage
+      nextcloud.ts         # Cliente WebDAV para Nextcloud
     permissions/
       check.ts             # Validação de permissões
     audit/
@@ -260,7 +329,7 @@ src/
    - Sessão do usuário (via Better Auth).
    - Permissões na pasta destino (se especificada).
    - Tipo e tamanho do arquivo (Zod validation).
-3. Arquivo é enviado para Supabase Storage (`storage.from('bucket').upload()`) com chave única (`{userId}/{timestamp}-{filename}`).
+3. Arquivo é enviado para Nextcloud via WebDAV com chave única (`{userId}/{timestamp}-{filename}`).
 4. Registro é criado em DB (`files` table) com metadados:
    - `id`, `owner_id`, `folder_id`, `name`, `mime_type`, `size_bytes`, `storage_path`, `created_at`
 5. Opcional: cria entrada de auditoria em `audit_logs` (`FILE_UPLOAD`).
@@ -288,7 +357,7 @@ src/
    - Sessão do usuário (se autenticado) ou token de compartilhamento (se link público).
    - Permissões no arquivo (proprietário, compartilhado com usuário, ou link válido).
 3. Busca metadados do arquivo em `files`.
-4. Busca arquivo do Supabase Storage (`storage.from('bucket').download()`) ou gera URL pré-assinada (ou faz proxy do arquivo).
+4. Busca arquivo do Nextcloud via WebDAV e retorna como stream.
 5. Registra evento de auditoria (`FILE_DOWNLOAD`).
 6. Retorna arquivo ou redireciona para URL pré-assinada.
 
@@ -338,7 +407,7 @@ src/
   name: text("name").notNull(),
   mimeType: text("mime_type"),
   sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
-  storagePath: text("storage_path").notNull(), // chave no MinIO
+  storagePath: text("storage_path").notNull(), // caminho no Nextcloud
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 }
@@ -426,7 +495,7 @@ index("audit_logs_action_idx").on(auditLogs.action),
 
 * **Transporte:** HTTPS obrigatório em produção (TLS 1.2+).
 * **Armazenamento:**
-  * Criptografia em repouso no MinIO (se configurado).
+  * Arquivos armazenados no Nextcloud (pode configurar criptografia no Nextcloud).
   * Senhas nunca em texto plano (hash com argon2 ou bcrypt via Better Auth).
 * **Senha & Auth:**
   * Better Auth usa hash seguro por padrão.
@@ -435,7 +504,7 @@ index("audit_logs_action_idx").on(auditLogs.action),
   * **CSRF:** Proteção via SameSite cookies (Better Auth).
   * **XSS:** Sanitização de entrada, Content Security Policy (CSP).
   * **SQL Injection:** Drizzle ORM previne (queries parametrizadas).
-  * **Path Traversal:** Validação de `storage_path` antes de acessar MinIO.
+  * **Path Traversal:** Validação de `storage_path` antes de acessar storage.
   * **Brute Force:** Rate limiting em login (futuro: CAPTCHA após N tentativas).
 * **Gestão de segredos:**
   * Variáveis de ambiente (`.env.local` não commitado).
@@ -473,10 +542,11 @@ index("audit_logs_action_idx").on(auditLogs.action),
   * Biblioteca: `resend` ou `nodemailer`.
   * Templates: React Email ou HTML simples.
 
-* **Storage externo (MinIO/S3):**
-  * SDK: `@aws-sdk/client-s3` ou `minio`.
-  * Bucket: `securdocs-files` (configurável).
-  * Política de acesso: Bucket privado, acesso via pré-assinado ou proxy.
+* **Storage (Nextcloud):**
+  * Protocolo: WebDAV
+  * Implementação: `lib/storage/nextcloud.ts` com fetch nativo
+  * Diretório base: `/SecuraDocs/{userId}/`
+  * Política de acesso: Autenticação via app password do Nextcloud
 
 ---
 
@@ -484,18 +554,15 @@ index("audit_logs_action_idx").on(auditLogs.action),
 
 ### 11.1 Ambientes
 
-* **Local:** 
-  - Next.js dev server (`pnpm dev`).
-  - NeonDB dev (connection string local).
-  - MinIO local (Docker) ou MinIO cloud.
+* **Local/Desenvolvimento:** 
+  - Docker Compose com PostgreSQL + Nextcloud
+  - Next.js dev server (`pnpm dev`)
+  - Ou `docker compose up -d` para stack completa
 
-* **Staging (opcional):**
-  - Vercel preview deployments.
-  - NeonDB branch de staging.
-
-* **Produção/Hackathon:**
-  - Vercel (Next.js) + NeonDB + MinIO cloud.
-  - Ou Docker Compose em VPS (ver MIGRATION_SELF_HOSTED.md).
+* **Produção:**
+  - Docker Compose em VPS (ver MIGRATION_SELF_HOSTED.md)
+  - PostgreSQL + Nextcloud + Next.js + Nginx
+  - SSL via Let's Encrypt
 
 ### 11.2 Pipeline CI/CD
 
@@ -531,7 +598,7 @@ index("audit_logs_action_idx").on(auditLogs.action),
 > 5 marcos técnicos principais.
 
 1. **Setup de projeto** (Fase 0)
-   - Next.js + Tailwind + shadcn + Drizzle + NeonDB + Better Auth.
+   - Next.js + Tailwind + shadcn + Drizzle + PostgreSQL + Better Auth.
    - Estrutura de pastas e configurações básicas.
 
 2. **Implementar módulos básicos de usuário e arquivos** (Fase 1)
@@ -557,11 +624,10 @@ index("audit_logs_action_idx").on(auditLogs.action),
 
 > Liste perguntas técnicas que ainda precisam de decisão.
 
-* **Storage:** Usar MinIO local no MVP ou cloud desde o início? (Decisão: Cloud para MVP, local para produção self-hosted)
 * **Multi-tenant:** Precisamos de multi-tenant (várias organizações no mesmo deploy) no MVP? (Decisão: Não no MVP, futuro)
 * **Backup:** Como será o backup automatizado (db + arquivos)? (Ver MIGRATION_SELF_HOSTED.md para estratégia)
-* **Preview de arquivos:** Implementar preview de imagens/PDFs no MVP? (Decisão: Não no MVP, futuro)
-* **Rate limiting:** Implementar rate limiting customizado ou usar Vercel Edge Config? (Decisão: Avaliar necessidade)
+* **Preview de arquivos:** Implementar preview de imagens/PDFs? (Decisão: Pode usar preview nativo do Nextcloud)
+* **Rate limiting:** Rate limiting implementado via middleware
 
 ---
 
@@ -572,8 +638,8 @@ index("audit_logs_action_idx").on(auditLogs.action),
 * Documentação de referência:
   - [Better Auth Docs](https://www.better-auth.com/docs)
   - [Drizzle ORM Docs](https://orm.drizzle.team/)
-  - [NeonDB Docs](https://neon.tech/docs)
-  - [MinIO Docs](https://min.io/docs/)
+  - [PostgreSQL Docs](https://www.postgresql.org/docs/)
+  - [Nextcloud WebDAV API](https://docs.nextcloud.com/server/stable/developer_manual/client_apis/WebDAV/)
 
 ---
 
@@ -582,14 +648,18 @@ index("audit_logs_action_idx").on(auditLogs.action),
 ### 16.1 Configuração Inicial do Drizzle
 
 ```typescript
-// lib/db/index.ts
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
+// lib/db/index.ts (Nextcloud Integration - PostgreSQL self-hosted)
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 import * as schema from './schema';
 
-const sql = neon(process.env.DATABASE_URL!);
-export const db = drizzle(sql, { schema });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+export const db = drizzle(pool, { schema });
 ```
+
 
 ### 16.2 Configuração do Better Auth
 
@@ -609,22 +679,85 @@ export const auth = betterAuth({
 });
 ```
 
-### 16.3 Configuração do Supabase Storage (MVP)
+### 16.3 Configuração do Nextcloud WebDAV Storage
 
 ```typescript
-// lib/storage/client.ts
-import { createClient } from '@supabase/supabase-js';
+// lib/storage/nextcloud.ts
+import { createClient } from 'webdav';
 
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // Use service role key for server-side operations
+// Criar cliente WebDAV para Nextcloud
+const nextcloudClient = createClient(
+  `${process.env.NEXTCLOUD_URL}${process.env.NEXTCLOUD_WEBDAV_PATH}`,
+  {
+    username: process.env.NEXTCLOUD_USER!,
+    password: process.env.NEXTCLOUD_PASSWORD!,
+  }
 );
 
-// Para operações de storage:
-// Upload: await supabase.storage.from('securdocs-files').upload(path, file)
-// Download: await supabase.storage.from('securdocs-files').download(path)
-// Get public URL: supabase.storage.from('securdocs-files').getPublicUrl(path)
+// Upload de arquivo
+export async function uploadFile(path: string, buffer: Buffer, mimeType: string) {
+  await nextcloudClient.putFileContents(path, buffer, {
+    contentLength: buffer.length,
+    headers: { 'Content-Type': mimeType },
+  });
+}
+
+// Download de arquivo
+export async function downloadFile(path: string): Promise<Buffer> {
+  const data = await nextcloudClient.getFileContents(path);
+  return Buffer.from(data as ArrayBuffer);
+}
+
+// Deletar arquivo
+export async function deleteFile(path: string) {
+  await nextcloudClient.deleteFile(path);
+}
+
+// Verificar se arquivo existe
+export async function fileExists(path: string): Promise<boolean> {
+  try {
+    await nextcloudClient.stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Criar diretório
+export async function createDirectory(path: string) {
+  await nextcloudClient.createDirectory(path, { recursive: true });
+}
 ```
 
-**Nota:** Para produção self-hosted, migrar para MinIO usando `@aws-sdk/client-s3` ou `minio` (ver MIGRATION_SELF_HOSTED.md).
+**Alternativa sem biblioteca (fetch nativo):**
+
+```typescript
+// lib/storage/nextcloud-fetch.ts
+const NEXTCLOUD_BASE = `${process.env.NEXTCLOUD_URL}${process.env.NEXTCLOUD_WEBDAV_PATH}`;
+const AUTH_HEADER = `Basic ${Buffer.from(
+  `${process.env.NEXTCLOUD_USER}:${process.env.NEXTCLOUD_PASSWORD}`
+).toString('base64')}`;
+
+export async function uploadFile(path: string, buffer: Buffer, mimeType: string) {
+  const response = await fetch(`${NEXTCLOUD_BASE}/${path}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': AUTH_HEADER,
+      'Content-Type': mimeType,
+    },
+    body: buffer,
+  });
+  if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
+}
+
+export async function downloadFile(path: string): Promise<Buffer> {
+  const response = await fetch(`${NEXTCLOUD_BASE}/${path}`, {
+    method: 'GET',
+    headers: { 'Authorization': AUTH_HEADER },
+  });
+  if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+  return Buffer.from(await response.arrayBuffer());
+}
+```
+
 
