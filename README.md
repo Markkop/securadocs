@@ -341,7 +341,7 @@ Execute com Dockerfile de produção:
 DOCKERFILE=Dockerfile docker compose up -d --build
 ```
 
-Veja [MIGRATION_SELF_HOSTED.md](../en/MIGRATION_SELF_HOSTED.md) para guia detalhado de deploy em produção.
+Veja [MIGRATION_SELF_HOSTED.md](docs/pt-br/MIGRATION_SELF_HOSTED.md) para guia detalhado de deploy em produção.
 
 ---
 
@@ -366,10 +366,10 @@ Veja [MIGRATION_SELF_HOSTED.md](../en/MIGRATION_SELF_HOSTED.md) para guia detalh
 
 ## Documentação
 
-- **[PRD.md](../en/PRD.md)** - Documento de Requisitos do Produto
-- **[TECH_SPECS.md](../en/TECH_SPECS.md)** - Especificações Técnicas
-- **[PLAN.md](../en/PLAN.md)** - Plano de Desenvolvimento
-- **[MIGRATION_SELF_HOSTED.md](../en/MIGRATION_SELF_HOSTED.md)** - Guia de Migração Self-Hosted
+- **[PRD.md](docs/pt-br/PRD.md)** - Documento de Requisitos do Produto
+- **[TECH_SPECS.md](docs/pt-br/TECH_SPECS.md)** - Especificações Técnicas
+- **[PLAN.md](docs/pt-br/PLAN.md)** - Plano de Desenvolvimento
+- **[MIGRATION_SELF_HOSTED.md](docs/pt-br/MIGRATION_SELF_HOSTED.md)** - Guia de Migração Self-Hosted
 
 ## Contribuindo
 
@@ -387,4 +387,4 @@ Contribuições são bem-vindas! Este projeto foi projetado para empoderar organ
 
 ---
 
-**Status:** MVP em desenvolvimento ativo. Veja [PLAN.md](../en/PLAN.md) para progresso atual.
+**Status:** MVP em desenvolvimento ativo. Veja [PLAN.md](docs/pt-br/PLAN.md) para progresso atual.
